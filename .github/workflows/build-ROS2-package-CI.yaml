@@ -39,7 +39,7 @@ jobs:
           - docker_image: ubuntu:noble
             ros_distribution: jazzy
 
-          # Lyrical
+          # Lyrical Luth
           - docker_image: ubuntu:resolute
             ros_distribution: lyrical
 
