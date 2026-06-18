@@ -31,8 +31,8 @@ jobs:
           - docker_image: ubuntu:noble
             ros_distribution: kilted
 
-          # Rolling Ridley (tracks Resolute on Ubuntu 26.04)
-          - docker_image: ubuntu:26.04
+          # Rolling Ridley
+          - docker_image: ubuntu:resolute
             ros_distribution: rolling
 
           # Jazzy Jalisco
