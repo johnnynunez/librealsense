@@ -592,19 +592,23 @@ def recovery():
     return { device.serial_number for device in _device_by_sn.values() if device.handle.is_in_recovery_mode() }
 
 
-def enable_only( serial_numbers, recycle = False, timeout = MAX_ENUMERATION_TIME ):
+def enable_only( serial_numbers, recycle = False, timeout = MAX_ENUMERATION_TIME, disable_other_ports = False ):
     """
-    Enable only the devices corresponding to the given serial-numbers. This can work either
-    with or without a hub: without, the devices will simply be HW-reset, but other devices
-    will still be present.
+    Enable the devices corresponding to the given serial-numbers and wait until they are online.
+    Works with or without a hub: without one the devices are simply HW-reset (recycle) and other
+    devices remain present.
 
     NOTE: will raise an exception if any SN is unknown!
 
-    :param serial_numbers: A collection of serial-numbers to enable - all others' ports are
-                           disabled and will no longer be usable!
-    :param recycle: If False, the devices will not be reset if they were already enabled. If
-                    True, the devices will be recycled by disabling the port, waiting, then
-                    re-enabling
+    Port state is intentionally NOT tracked here -- callers own it via their own lifecycle:
+    the pytest harness disables its device on fixture teardown; the legacy harness passes
+    disable_other_ports=True so each setup isolates statelessly.
+
+    :param serial_numbers: serial-numbers to enable.
+    :param recycle: If True, power-cycle the requested device(s) -- disable the port, wait for
+                    removal, then re-enable -- to reset them to a clean state.
+    :param disable_other_ports: If True, disable every other hub port so only the requested
+                    device(s) remain powered (stateless isolation).
     :param timeout: The maximum seconds to wait to make sure the devices are indeed online
     """
     if recycle:
@@ -616,28 +620,18 @@ def enable_only( serial_numbers, recycle = False, timeout = MAX_ENUMERATION_TIME
         ports = [ get( sn ).port for sn in serial_numbers ]
         # DDS (and other non-hub) devices have port=None; filter them out of hub operations
         wanted_ports = sorted( p for p in ports if p is not None )
-        enabled_ports = [ get( sn ).port for sn in enabled() if get( sn ).port is not None ]
         #
-        if recycle:
-            #
-            if not wanted_ports and not enabled_ports:
-                log.d( 'no hub ports to recycle; leaving hub as-is' )
-            elif enabled_ports:
-                log.d( 'enabling ports', wanted_ports,
-                       'disabling currently enabled ports', enabled_ports )
-                sns_to_remove = { sn for sn in enabled() if get( sn ).port in enabled_ports }
-                hub.disable_ports( enabled_ports )
-                _wait_until_removed( sns_to_remove, timeout = timeout )
-            #
-            if wanted_ports:
-                hub.enable_ports( wanted_ports )
-            #
+        if not wanted_ports:
+            log.d( 'no hub ports to enable; leaving hub as-is' )
+        elif recycle:
+            log.d( 'recycling ports', wanted_ports, '+ disabling others' if disable_other_ports else '' )
+            recycled_sns = { sn for sn in serial_numbers if get( sn ) and get( sn ).port is not None }
+            hub.disable_ports( wanted_ports )
+            _wait_until_removed( recycled_sns, timeout = timeout )
+            hub.enable_ports( wanted_ports, disable_other_ports = disable_other_ports )
         else:
-            #
-            if wanted_ports:
-                hub.enable_ports( wanted_ports, disable_other_ports = True )
-            else:
-                log.d( 'no hub ports to enable; leaving hub as-is' )
+            log.d( 'enabling ports', wanted_ports, '+ disabling others' if disable_other_ports else '' )
+            hub.enable_ports( wanted_ports, disable_other_ports = disable_other_ports )
         #
         if not _wait_for( serial_numbers, timeout = timeout ):
             raise TimeoutError( f'devices did not enumerate within {timeout}s after hub enable: {serial_numbers}' )
@@ -659,6 +653,20 @@ def enable_all():
     Enables all ports on the hub -- without a hub, this does nothing!
     """
     hub.enable_ports()
+
+
+def disable( serial_numbers ):
+    """
+    Disable the hub ports for the given serial-numbers. No-op without a hub or for devices
+    with no hub port (e.g. non-hub DDS devices). Used by the pytest harness to power off a
+    device on fixture teardown -- the counterpart to enable_only() at setup.
+    """
+    if not hub:
+        return
+    ports = sorted( get( sn ).port for sn in serial_numbers
+                    if get( sn ) and get( sn ).port is not None )
+    if ports:
+        hub.disable_ports( ports )
 
 
 def _wait_until_removed( serial_numbers, timeout = PORTS_DISABLED_TIMEOUT ):

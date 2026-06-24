@@ -527,7 +527,7 @@ def test_wrapper( test, configuration=None, repetition=1, serial_numbers=None, c
             if no_reset or not serial_numbers:
                 time.sleep(1)  # small pause between tries
             else:
-                devices.enable_only( serial_numbers, recycle=True )
+                devices.enable_only( serial_numbers, recycle=True, disable_other_ports=True )
         if test_wrapper_( test, configuration, repetition, retry, retry_count, serial_numbers,
                           custom_fw_d400_override=custom_fw_d400_override ):
             return True
@@ -732,7 +732,9 @@ try:
                         log.d( 'configuration:', configuration_str( configuration, repetition, sns=serial_numbers ) )
                         log.debug_indent()
                         should_reset = not no_reset
-                        devices.enable_only( serial_numbers, recycle=should_reset )
+                        # Legacy harness has no teardown hook, so isolate statelessly each test:
+                        # enable the wanted device(s) and disable every other port.
+                        devices.enable_only( serial_numbers, recycle=should_reset, disable_other_ports=True )
                     except (RuntimeError, TimeoutError, OSError) as e:
                         log.w( log.red + test.name + log.reset + ': ' + str( e ) )
                         test_ok = False

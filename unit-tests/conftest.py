@@ -524,23 +524,30 @@ def __pytest_repeat_step_number(request):
 
 @pytest.fixture(scope="module", autouse=True)
 def module_device_setup(request, _test_device_serial, __pytest_repeat_step_number):
-    """Enable the target device(s) via the hub. Runs once per (module, parametrized value).
+    """Power the target device(s) on for the module and off again at teardown — once per
+    (module, parametrized value).
 
-    All resolution (markers, CLI filters, sentinels for missing/skipped devices) happens
-    in ``resolve_device_each_serials`` at collection time.  The fixture just consumes
-    ``_test_device_serial`` and dispatches:
+    Resolution (markers, CLI filters, missing/skip sentinels) happens in
+    ``resolve_device_each_serials`` at collection time; this fixture just consumes
+    ``_test_device_serial`` and owns the hub-port lifecycle:
 
     - ``None``            → test has no device markers; yield None.
-    - ``list[str]``       → multi-device marker; enable all serials and yield the list.
+    - ``list[str]``       → multi-device marker; enable all serials, yield the list, disable on teardown.
     - sentinel strings    → ``pytest.skip`` / ``pytest.fail``.
-    - plain serial string → enable that device and yield it.
+    - plain serial string → enable that device, yield it, disable on teardown.
 
-    ``autouse=True`` so the hub recycle fires at the first parametrized test in each
-    device group, not lazily at whichever test happens to be the first device-consumer.
-    Without it, a synthetic-only test that runs before a live-device test in the same
-    parametrize group would defer the recycle — making the recycle landing point
-    depend on test declaration order. For tests without any device marker
-    (``_test_device_serial is None``) the body yields None immediately, costing nothing.
+    Port state is owned by this fixture's lifecycle — enable on setup, disable on teardown — so
+    isolation and recycle fall out of pytest re-instantiating the fixture per
+    (module, device, repeat-step); there is no global port tracking. Isolation in the default
+    path comes from the *previous* module's teardown having powered its device off, so setup only
+    needs to power on its own. With ``--no-reset`` the device is isolated without a power-cycle
+    (``disable_other_ports=True``) and left on at teardown — matching the legacy fast path.
+
+    ``autouse=True`` is REQUIRED, not just an optimization: some tests build their own
+    ``rs.context()`` and never request ``test_device``/``test_context`` (e.g.
+    ``live/streaming/pytest-jpeg-compressed-format.py``, ``live/d500/pytest-detect-D555.py``);
+    they get their port powered only because this fixture runs automatically for every
+    device-marked module.
     """
     serial_number = _test_device_serial
 
@@ -548,6 +555,22 @@ def module_device_setup(request, _test_device_serial, __pytest_repeat_step_numbe
         log.debug(f"Module {request.node.name} has no device requirements")
         yield None
         return
+
+    no_reset = request.config.getoption("--no-reset", default=False)
+    # Default: power-cycle the device and disable it on teardown (isolation comes from the
+    # previous module's teardown). --no-reset: isolate statelessly without a power-cycle and
+    # leave the device on (no teardown-disable), matching the legacy fast path.
+    recycle = not no_reset
+    disable_other_ports = no_reset
+    teardown_disable = not no_reset
+
+    def _teardown(serials):
+        if not teardown_disable:
+            return
+        try:
+            devices.disable(serials)
+        except Exception as e:
+            log.warning(f"Failed to disable {serials} on teardown: {e}")
 
     if isinstance(serial_number, list):
         # Multi-device path: parametrized list of serials. Sentinels are always strings,
@@ -558,11 +581,12 @@ def module_device_setup(request, _test_device_serial, __pytest_repeat_step_numbe
         ]
         log.info(f"Configuration: {', '.join(names)}")
         try:
-            devices.enable_only(serial_number, recycle=True)
+            devices.enable_only(serial_number, recycle=recycle, disable_other_ports=disable_other_ports)
             log.debug(f"All {len(serial_number)} devices enabled and ready")
         except Exception as e:
             pytest.fail(f"Failed to enable devices: {e}")
         yield serial_number
+        _teardown(serial_number)
         return
 
     # Single-device path (parametrized string value, including sentinels).
@@ -574,35 +598,19 @@ def module_device_setup(request, _test_device_serial, __pytest_repeat_step_numbe
         pytest.fail(f"No devices found matching requirements: {pattern}")
     log.debug(f"Test using parametrized device: {serial_number}")
 
-    # Enable the device for this module. Module-scoped fixture lifecycle handles
-    # recycle/reuse automatically: pytest re-instantiates this fixture per
-    # (module, _test_device_serial, __pytest_repeat_step_number), so the device
-    # is power-cycled exactly when it needs to change.
-    #
-    # --no-reset additionally skips enable_only on subsequent passes for the same
-    # serial within the same module, matching the legacy behavior.
     device = devices.get(serial_number)
     device_name = device.name if device else serial_number
     log.info(f"Configuration: {device_name} [{serial_number}]")
 
-    no_reset = request.config.getoption("--no-reset", default=False)
-    module_obj = request.module
-    already_enabled_serial = getattr(module_obj, '_module_last_serial', None)
-    if no_reset and already_enabled_serial == serial_number:
-        log.debug(f"Device {serial_number} already enabled (--no-reset), skipping hub setup")
-        yield serial_number
-        return
-
-    recycle = not no_reset
     try:
-        log.debug(f"{'Recycling' if recycle else 'Enabling'} device via hub...")
-        devices.enable_only([serial_number], recycle=recycle)
-        module_obj._module_last_serial = serial_number
+        log.debug(f"{'Enabling' if no_reset else 'Recycling'} device via hub...")
+        devices.enable_only([serial_number], recycle=recycle, disable_other_ports=disable_other_ports)
         log.debug(f"Device enabled and ready")
     except Exception as e:
         pytest.fail(f"Failed to enable device {serial_number}: {e}")
 
     yield serial_number
+    _teardown([serial_number])
 
 
 @pytest.fixture(scope="module")

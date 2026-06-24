@@ -115,9 +115,10 @@ class TestCliOptionsRegistered:
                                      "--repeat", "3", "--no-reset")
         assert_outcomes(out, passed=3)
         calls = tracking["enable_only_calls"]
-        # First run enables without recycle, subsequent runs skip enable_only entirely
-        assert len(calls) == 1
-        assert calls[0]['recycle'] is False
+        # The module fixture re-instantiates per repeat pass and enables (without power-cycling)
+        # each time; --no-reset only suppresses the recycle, not the (idempotent) enable.
+        assert len(calls) == 3
+        assert all(c['recycle'] is False for c in calls)
 
     def test_device_nonexistent(self):
         """--device D999 with no matching device should produce 0 parametrized instances."""

@@ -15,7 +15,7 @@ if _py_dir not in sys.path:
 # Fake pyrealsense2 — track log_to_console calls so tests can verify --rslog
 import json as _json
 _tracking_log = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_tracking.json')
-_tracking = {"rslog_calls": [], "query_kwargs": [], "enable_only_calls": []}
+_tracking = {"rslog_calls": [], "query_kwargs": [], "enable_only_calls": [], "disable_calls": []}
 def _save_tracking():
     with open(_tracking_log, 'w') as _f:
         _json.dump(_tracking, _f)
@@ -85,11 +85,17 @@ _dev.query = _mock_query
 _dev.map_unknown_ports = lambda: None
 _dev.wait_until_all_ports_disabled = lambda: None
 
-# Track enable_only calls so tests can verify hub port behavior
-def _mock_enable_only(serials, recycle=True):
-    _tracking["enable_only_calls"].append({"serials": list(serials), "recycle": recycle})
+# Track enable_only / disable calls so tests can verify hub port behavior
+def _mock_enable_only(serials, recycle=True, timeout=None, disable_other_ports=False):
+    _tracking["enable_only_calls"].append(
+        {"serials": list(serials), "recycle": recycle, "disable_other_ports": disable_other_ports})
     _save_tracking()
 _dev.enable_only = _mock_enable_only
+
+def _mock_disable(serials):
+    _tracking.setdefault("disable_calls", []).append({"serials": list(serials)})
+    _save_tracking()
+_dev.disable = _mock_disable
 
 # exec() the REAL conftest.py
 _conftest_path = os.path.join(_unit_tests_dir, 'conftest.py')

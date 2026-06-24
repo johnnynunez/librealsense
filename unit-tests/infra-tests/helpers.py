@@ -176,7 +176,7 @@ def run_e2e(test_filename, *extra_pytest_args):
 
         tracking_file = os.path.join(tmpdir, '_tracking.json')
         tracking = json.loads(open(tracking_file).read()) if os.path.exists(tracking_file) else {
-            "enable_only_calls": [], "rslog_calls": [], "query_kwargs": []
+            "enable_only_calls": [], "rslog_calls": [], "query_kwargs": [], "disable_calls": []
         }
 
         return p.returncode, p.stdout, tracking
