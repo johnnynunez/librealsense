@@ -655,18 +655,27 @@ def enable_all():
     hub.enable_ports()
 
 
-def disable( serial_numbers ):
+def disable( serial_numbers, wait = True ):
     """
-    Disable the hub ports for the given serial-numbers. No-op without a hub or for devices
-    with no hub port (e.g. non-hub DDS devices). Used by the pytest harness to power off a
-    device on fixture teardown -- the counterpart to enable_only() at setup.
+    Disable the hub ports for the given serial-numbers and, by default, wait until the devices
+    are actually removed. No-op without a hub or for devices with no hub port (e.g. non-hub DDS
+    devices). Used by the pytest harness to power off a device on fixture teardown -- the
+    counterpart to enable_only() at setup.
+
+    Waiting matters for slow-dropping DDS/PoE devices (participant-lease latency, ~8s): without
+    it the removal can land during the *next* module's test and race its device discovery
+    (observed as a flaky 'Advanced mode expects camera to have a depth sensor' at setup). This
+    mirrors the _wait_until_removed() that enable_only(recycle=True) does on the enable path.
     """
     if not hub:
         return
-    ports = sorted( get( sn ).port for sn in serial_numbers
-                    if get( sn ) and get( sn ).port is not None )
-    if ports:
-        hub.disable_ports( ports )
+    sns = [ sn for sn in serial_numbers if get( sn ) and get( sn ).port is not None ]
+    ports = sorted( get( sn ).port for sn in sns )
+    if not ports:
+        return
+    hub.disable_ports( ports )
+    if wait:
+        _wait_until_removed( set( sns ) )
 
 
 def _wait_until_removed( serial_numbers, timeout = PORTS_DISABLED_TIMEOUT ):
