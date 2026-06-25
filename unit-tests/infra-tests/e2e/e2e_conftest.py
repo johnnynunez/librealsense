@@ -76,11 +76,12 @@ def _mock_get(sn):
 _dev.by_spec = _mock_by_spec
 _dev.get = _mock_get
 _dev._device_by_sn = {sn: FakeDevice(sn, n) for sn, n in _sn_map.items()}
-# Truthy sentinel: the port-management e2e tests model a hub-equipped bench, so the conftest's
-# recycle decision (recycle iff no hub) resolves to "don't recycle on setup". Port ops are mocked
-# above, so the object is never actually used. init_hub is stubbed so the real one doesn't probe
-# (absent) hardware and reset this back to None.
-_dev.hub = object()
+# Hub presence drives the conftest's recycle decision (recycle iff no hub). By default we model a
+# hub-equipped bench with a truthy sentinel -> "don't recycle on setup" (the teardown-disable does
+# the cycle). Set E2E_NO_HUB=1 to model a hub-less bench (e.g. Jetson) where teardown-disable is a
+# no-op and setup must recycle via hardware_reset. Port ops are mocked above, so the sentinel is
+# never actually used. init_hub is stubbed so the real one doesn't probe (absent) hardware.
+_dev.hub = None if os.environ.get('E2E_NO_HUB') else object()
 _dev.init_hub = lambda: None
 _dev._context = None
 def _mock_query(**kw):
@@ -97,8 +98,8 @@ def _mock_enable_only(serials, recycle=True, timeout=None, disable_other_ports=F
     _save_tracking()
 _dev.enable_only = _mock_enable_only
 
-def _mock_disable(serials):
-    _tracking.setdefault("disable_calls", []).append({"serials": list(serials)})
+def _mock_disable(serials, wait=True):
+    _tracking.setdefault("disable_calls", []).append({"serials": list(serials), "wait": wait})
     _save_tracking()
 _dev.disable = _mock_disable
 

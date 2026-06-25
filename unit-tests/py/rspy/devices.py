@@ -675,7 +675,10 @@ def disable( serial_numbers, wait = True ):
         return
     hub.disable_ports( ports )
     if wait:
-        _wait_until_removed( set( sns ) )
+        if not _wait_until_removed( set( sns ) ):
+            # don't fail teardown over this, but surface it: a port that didn't drop in time can
+            # linger into the next module and race its device discovery (the very thing wait guards)
+            log.w( f'disable: devices not removed within timeout: {sns}' )
 
 
 def _wait_until_removed( serial_numbers, timeout = PORTS_DISABLED_TIMEOUT ):

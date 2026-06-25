@@ -25,6 +25,17 @@ class TestDevicePortManagement:
         assert tracking["enable_only_calls"][0]['serials'] == ['111']
         assert tracking["enable_only_calls"][0]['recycle'] is False
 
+    def test_hubless_recycles_via_hw_reset(self):
+        """On a hub-less bench (e.g. Jetson) teardown-disable is a no-op, so setup MUST recycle --
+        enable_only(recycle=True) falls back to hardware_reset. With a hub it's recycle=False (the
+        teardown-disable does the cycle); E2E_NO_HUB=1 flips devices.hub to None to exercise the
+        hub-less branch of `recycle = (not no_reset) and devices.hub is None`."""
+        rc, out, tracking = run_e2e("pytest-device-setup.py", "-k", "test_d455 and not excluded",
+                                     env={"E2E_NO_HUB": "1"})
+        assert_outcomes(out, passed=1)
+        assert len(tracking["enable_only_calls"]) == 1
+        assert tracking["enable_only_calls"][0]['recycle'] is True
+
     def test_device_each_enables_one_port_per_test(self):
         """@device_each('D400*') should call enable_only once per device (recycle=False)."""
         rc, out, tracking = run_e2e("pytest-each-setup.py", "-k", "test_d400 and not d999")

@@ -347,7 +347,13 @@ class Acroname(device_hub.device_hub):
                     get_last_two_digits = lambda array: tuple(
                         reversed(list(reversed([i for i in array if i != 0]))[:2]))
                     # only the last two digits are necessary
-                    first_index, second_index = get_last_two_digits(split_location)
+                    last_two = get_last_two_digits(split_location)
+                    if len(last_two) < 2:
+                        # fewer than two non-zero fields (e.g. all-zero or single-field location):
+                        # not enough to identify a sub-hub+port pair -> defer to port mapping
+                        log.d(f'usb location {usb_location!r} has <2 non-zero fields; deferring to port mapping')
+                        return None
+                    first_index, second_index = last_two
 
                     return get_port_from_usb(first_index, second_index)
     else:
