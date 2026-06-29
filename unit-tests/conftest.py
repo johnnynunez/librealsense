@@ -461,24 +461,26 @@ def _cleanup_devices():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def session_setup_teardown():
-    """Runs once per session: log startup info, yield, then clean up hub/devices on exit."""
+def session_setup_teardown(request):
+    """Runs once per session: register cleanup, yield, then clean up hub/devices on exit."""
     # Setup — runs once before the first test
     register_signal_handlers(_cleanup_devices)
 
     yield  # All tests run here
 
-    # Teardown — runs once after the last test
-    ensure_newline()
-    log.info("")
-    log.info("=" * 80)
-    log.info("Pytest Session Ending")
-    log.info("=" * 80)
-
-    try:
-        _cleanup_devices()
-    except Exception as e:
-        log.warning(f"Error during cleanup: {e}")
+    # Teardown — runs once after the last test. The module-scoped log handler is already closed
+    # (at the last module's teardown), so this output never tails a test's .log. Emit it with
+    # pytest's output capture suspended and via print() so it reaches the console -- otherwise
+    # fixture-teardown stdout is captured and discarded, and a logging.info would have no handler.
+    capmanager = request.config.pluginmanager.getplugin("capturemanager")
+    with capmanager.global_and_fixture_disabled():
+        print(f"\n-I- {'=' * 80}")  # leading newline: pytest's last progress line has no EOL yet
+        print("-I- Pytest Session Ending")
+        print(f"-I- {'=' * 80}")
+        try:
+            _cleanup_devices()
+        except Exception as e:
+            print(f"-W- Error during cleanup: {e}")
 
     log.info("=" * 80)
 
