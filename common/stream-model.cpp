@@ -1251,7 +1251,7 @@ namespace rs2
             "OSSD2_A_present",
             "OSSD2_A status : Raised / Idle",
             "OSSD2_B_present",
-            "OSSD2_B status : Raised / Idle"
+            "OSSD2_B status : Raised / Idle",
             "Device_Ready_present",
             "Device_Ready on / off",
             "Error signal present",
