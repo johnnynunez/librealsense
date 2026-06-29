@@ -81,8 +81,7 @@ def test_unit_transform():
         depth_distance_format = depth_distance.get_profile().format()
         assert rs.format.distance == depth_distance_format
 
-        for j in range(W*H):
-            frame_data_units_transformed = (origin_frame[j] * depth_unit)
-            assert ut_frame[j] == np.float32(frame_data_units_transformed)
+        expected_units_frame = (origin_frame * depth_unit).astype(np.float32)
+        assert np.array_equal(ut_frame, expected_units_frame)
 
     t.join()
