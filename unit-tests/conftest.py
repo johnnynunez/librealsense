@@ -18,6 +18,7 @@ and fixtures that pytest requires in conftest.py for auto-discovery.
 import pytest
 import sys
 import os
+import re
 import logging
 
 # Defense against ROS 2 launch.logging: when ROS is sourced, launch_testing's
@@ -56,7 +57,7 @@ from rspy import devices, repo
 from rspy.signals import register_signal_handlers
 from rspy.pytest.logging_setup import (
     setup_test_logging, bridge_rspy_log, ensure_newline, configure_logging,
-    open_log, close_log, print_terminal_summary,
+    open_log, close_log, _compose_log_name, print_terminal_summary,
     configure_junit_logging,
 )
 from rspy.pytest.log_live_format import install as install_live_log_format
@@ -415,6 +416,7 @@ def _test_log_banner(request):
     Setup-phase failures in module_device_setup happen BEFORE this fixture runs, so those paths
     emit the header themselves (via _emit_test_header) to keep the error anchored to its item."""
     _emit_test_header(request.node.nodeid)
+    _record_log_alias(request)
     yield
     ensure_newline()
 
@@ -561,6 +563,60 @@ def _device_log_id(serial):
     return f"{dev.name}-{serial}" if dev else serial
 
 
+# Per-item log filenames to hardlink onto a camera's collapsed log, keyed by the camera log's
+# absolute path. Lets Jenkins' per-case report links (which reconstruct <module>_<full-bracket>.log
+# per item) resolve to the collapsed file WITHOUT any Jenkins/deploy-repo change.
+_log_alias_registry = {}
+
+
+def _per_item_log_name(fspath, item_name):
+    """The legacy per-item log filename (full bracket id) Jenkins reconstructs for an item."""
+    m = re.search(r'\[(.+)\]', item_name)
+    return _compose_log_name(fspath, m.group(1) if m else None)
+
+
+def _record_log_alias(request):
+    """Record this item's per-item log filename so module_log teardown can link it to the camera's
+    collapsed log. No-op for non-device tests or when the per-item name already equals the camera
+    name (single-param modules -- the common case -- need no alias)."""
+    logdir = getattr(request.config, '_test_logdir', None)
+    cs = getattr(request.node, 'callspec', None)
+    device_id = _device_log_id(cs.params.get('_test_device_serial') if cs else None)
+    if not logdir or device_id is None:
+        return
+    fspath = str(request.node.fspath)
+    camera_name = _compose_log_name(fspath, device_id)
+    item_name = _per_item_log_name(fspath, request.node.name)
+    if item_name != camera_name:
+        _log_alias_registry.setdefault(os.path.join(logdir, camera_name), set()).add(item_name)
+
+
+def _create_log_aliases(config, fspath, device_id):
+    """Hardlink (copy fallback) each recorded per-item name to the camera's collapsed log, so a
+    multi-param module's per-case Jenkins links all resolve to the one camera file."""
+    logdir = getattr(config, '_test_logdir', None)
+    if not logdir or device_id is None:
+        return
+    camera_path = os.path.join(logdir, _compose_log_name(fspath, device_id))
+    names = _log_alias_registry.pop(camera_path, ())
+    if not names or not os.path.exists(camera_path):
+        return
+    for item_name in names:
+        alias = os.path.join(logdir, item_name)
+        if alias == camera_path:
+            continue
+        try:
+            if os.path.lexists(alias):
+                os.remove(alias)          # retries re-create the alias; replace any stale one
+            os.link(camera_path, alias)   # hardlink: no content copy, archived as a real file
+        except OSError:
+            try:
+                import shutil
+                shutil.copyfile(camera_path, alias)
+            except OSError as e:
+                log.warning(f"Could not create per-case log alias {alias}: {e}")
+
+
 @pytest.fixture(scope="module", autouse=True)
 def module_log(request, _test_device_serial):
     """Own the per-(module, camera) log file for the whole module lifecycle.
@@ -582,6 +638,8 @@ def module_log(request, _test_device_serial):
         yield
     finally:
         close_log(handler)
+        # link any extra-param cases' per-item names to this camera's collapsed log (Jenkins links)
+        _create_log_aliases(request.config, str(request.node.fspath), device_id)
 
 
 @pytest.fixture(scope="module", autouse=True)
