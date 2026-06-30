@@ -149,6 +149,11 @@ foreach ($subtree in $SearchTrees)
         }
         else
         {
+            # Device-instance prefix "USB\VID_xxxx&PID_xxxx&MI_00" identifies the device (strip the instance suffix).
+            # Guard against instances shorter than the prefix before matching against the multi-pin list.
+            $devInstance = $item.DeviceInstance.ToString()
+            $isMultiPin = ($devInstance.Length -ge 27) -and ($MultiPinDevices -contains $devInstance.Substring(0,27))
+
             $val = 0,0,0,0
             $val[0] = Get-ItemPropertyValue -Path $fullPath -Name MetadataBufferSizeInKB0
             $val[1] = Get-ItemPropertyValue -Path $fullPath -Name MetadataBufferSizeInKB1
@@ -165,22 +170,19 @@ foreach ($subtree in $SearchTrees)
                 "Device " +  $item.DeviceInstance.ToString() + ": skiping - metadata key already exists"
             }
 
-            #convert "USB\VID_8086&PID_0B07&MI_03\6&269496df&0&0003" into "USB\VID_8086&PID_0B07&MI_03"
-            if (($MultiPinDevices -contains $item.DeviceInstance.Substring(0,27)) -and ($val[1] -eq 0))
+            if ($isMultiPin -and ($val[1] -eq 0))
             {
                 # Multi-pin interface requires an additional key
                 "Device " +  $item.DeviceInstance.ToString() +": adding extra key for multipin interface"
                 Set-ItemProperty -path $fullPath -name MetadataBufferSizeInKB1 -value 5
             }
-			#convert "USB\VID_8086&PID_0B07&MI_03\6&269496df&0&0003" into "USB\VID_8086&PID_0B07&MI_03"
-            if (($MultiPinDevices -contains $item.DeviceInstance.Substring(0,27)) -and ($val[2] -eq 0))
+            if ($isMultiPin -and ($val[2] -eq 0))
             {
                 # Multi-pin interface requires an additional key
                 "Device " +  $item.DeviceInstance.ToString() +": adding extra key for multipin interface"
                 Set-ItemProperty -path $fullPath -name MetadataBufferSizeInKB2 -value 5
             }
-			#convert "USB\VID_8086&PID_0B07&MI_03\6&269496df&0&0003" into "USB\VID_8086&PID_0B07&MI_03"
-            if (($MultiPinDevices -contains $item.DeviceInstance.Substring(0,27)) -and ($val[3] -eq 0))
+            if ($isMultiPin -and ($val[3] -eq 0))
             {
                 # Dual-RGB devices route a fourth media-pin (second color) through MI_00
                 "Device " +  $item.DeviceInstance.ToString() +": adding extra key for multipin interface"

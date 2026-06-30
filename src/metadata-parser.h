@@ -157,7 +157,7 @@ namespace librealsense
             if (s->header.md_type_id != expected_type)
             {
                 // Commented out to avoid flooding the log. Some mismatched metadata types are expected, e.g dual-RGB
-                // color metadata on a depth sensor, and LPC/occupancy metadata on safety camrera.
+                // color metadata on a depth sensor, and LPC/occupancy metadata on safety camera.
                 //std::string type
                 //    = (md_type_desc.count(s->header.md_type_id) > 0)
                 //    ? md_type_desc.at(s->header.md_type_id)
