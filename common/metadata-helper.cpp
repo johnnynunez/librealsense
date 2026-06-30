@@ -168,6 +168,8 @@ namespace rs2
             {
                 // D405 has 3 media-pins
                 if (equal(pid, "0b5b")) return 3;
+                // 2C dual-RGB (D535/D585) route two color streams through MI_00: depth, IR, color 1, color 2
+                if (equal(pid, "0c01") || equal(pid, "0c04") || equal(pid, "0c07")) return 4;
                 else return 2; // D400 has two
             }
             return 1; // RGB has one

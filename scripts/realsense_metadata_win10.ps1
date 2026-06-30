@@ -145,13 +145,15 @@ foreach ($subtree in $SearchTrees)
             Remove-ItemProperty -path $fullPath -name MetadataBufferSizeInKB0
             Remove-ItemProperty -path $fullPath -name MetadataBufferSizeInKB1
 			Remove-ItemProperty -path $fullPath -name MetadataBufferSizeInKB2
+			Remove-ItemProperty -path $fullPath -name MetadataBufferSizeInKB3
         }
         else
         {
-            $val = 0,0,0
+            $val = 0,0,0,0
             $val[0] = Get-ItemPropertyValue -Path $fullPath -Name MetadataBufferSizeInKB0
             $val[1] = Get-ItemPropertyValue -Path $fullPath -Name MetadataBufferSizeInKB1
 			$val[2] = Get-ItemPropertyValue -Path $fullPath -Name MetadataBufferSizeInKB2
+			$val[3] = Get-ItemPropertyValue -Path $fullPath -Name MetadataBufferSizeInKB3
 
             if ($val[0] -eq 0)
             {
@@ -176,6 +178,13 @@ foreach ($subtree in $SearchTrees)
                 # Multi-pin interface requires an additional key
                 "Device " +  $item.DeviceInstance.ToString() +": adding extra key for multipin interface"
                 Set-ItemProperty -path $fullPath -name MetadataBufferSizeInKB2 -value 5
+            }
+			#convert "USB\VID_8086&PID_0B07&MI_03\6&269496df&0&0003" into "USB\VID_8086&PID_0B07&MI_03"
+            if (($MultiPinDevices -contains $item.DeviceInstance.Substring(0,27)) -and ($val[3] -eq 0))
+            {
+                # Dual-RGB devices route a fourth media-pin (second color) through MI_00
+                "Device " +  $item.DeviceInstance.ToString() +": adding extra key for multipin interface"
+                Set-ItemProperty -path $fullPath -name MetadataBufferSizeInKB3 -value 5
             }
         }
     }
