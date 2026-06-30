@@ -742,7 +742,8 @@ def test_device_wrapped(test_device):
     yield dev, ctx
     if safety_sensor is not None:
         try:
-            safety_sensor.set_option(rs.option.safety_mode, rs.safety_mode.run)
+            from rspy import tests_wrapper
+            tests_wrapper.set_safety_mode(safety_sensor, rs.safety_mode.run)
         except Exception as e:
             # Best-effort: don't mask test failures, and the device may already be reset by teardown time.
             log.warning(f"safety_mode restore skipped for {sn}: {e}")

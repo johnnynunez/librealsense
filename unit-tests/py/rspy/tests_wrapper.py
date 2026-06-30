@@ -10,10 +10,11 @@ from rspy import log
 from rspy.stopwatch import Stopwatch
 
 
-# The D585S FW finishes loading its safety config a few seconds after USB enumeration (~4s
-# observed). A safety_mode change issued before that fails with "Failed to set the option to
-# value 2", so retry until it takes or we time out.
-def set_safety_mode( safety_sensor, mode, timeout = 10, interval = 0.5 ):
+# The D585S FW can transiently reject a safety_mode change (RuntimeError "Failed to set the
+# option to value N") for several seconds after USB enumeration and after disruptive operations
+# (heavy streaming, hardware_reset). Retry until it takes or we time out. Use this for every
+# D585S safety_mode transition so the tests don't rely on luck / pytest-retry.
+def set_safety_mode( safety_sensor, mode, timeout = 30, interval = 0.5 ):
     sw = Stopwatch()
     last_exc = None
     attempt = 0
@@ -43,6 +44,6 @@ def stop_wrapper( dev = None ):
     if "D585S" in dev.get_info(rs.camera_info.name):
         try:
             safety_sensor = dev.first_safety_sensor()
-            safety_sensor.set_option(rs.option.safety_mode, rs.safety_mode.run)
+            set_safety_mode( safety_sensor, rs.safety_mode.run )
         except Exception as e:
             log.e(f"Cleanup failed: could not set safety_mode back to run: {e}")
