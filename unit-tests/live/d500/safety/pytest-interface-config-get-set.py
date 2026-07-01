@@ -210,7 +210,7 @@ def test_verify_same_table_after_camera_reboot(test_device):
     safety_sensor = new_dev.first_safety_sensor()
 
     log.debug("Setting operational mode to service")
-    safety_sensor.set_option(rs.option.safety_mode, rs.safety_mode.service)
+    tw.set_safety_mode(safety_sensor, rs.safety_mode.service)
     assert safety_sensor.get_option(rs.option.safety_mode) == float(rs.safety_mode.service)
 
     config_after_reboot = safety_sensor.get_safety_interface_config(rs.calib_location.flash)
