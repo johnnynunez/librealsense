@@ -1,17 +1,18 @@
 # License: Apache 2.0. See LICENSE file in root directory.
-# Copyright(c) 2023 RealSense, Inc. All Rights Reserved.
+# Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-#temporary fix to prevent the test from running on Win_SH_Py_DDS_CI
-#test:donotrun:dds
-
-#disabled until LRS-986 ticket is resolved due to stability issues
-#test:donotrun
-
+import pytest
+from pytest_check import check
 import pyrealsense2 as rs
-from rspy import test, repo
+from rspy import repo
 import os.path
+
+# disabled until LRS-986 ticket is resolved due to stability issues
+pytestmark = [pytest.mark.skip(reason="LRS-986: disabled due to stability issues")]
+
+
 ################################################################################################
-with test.closure("Test Projection from recording"):
+def test_projection_from_recording():
     filename = os.path.join(repo.build, 'unit-tests', 'recordings', 'single_depth_color_640x480.bag')
     ctx = rs.context()
     dev = ctx.load_device(filename)
@@ -28,7 +29,7 @@ with test.closure("Test Projection from recording"):
     color_profile = rs.stream_profile()
     while not depth_profile or not color_profile:
         frames = syncer.wait_for_frames()
-        test.check(frames.size() > 0)
+        check.is_true(frames.size() > 0)
         if frames.size() == 1:
             if frames.get_profile().stream_type() == rs.stream.depth:
                 depth = frames.get_depth_frame()
@@ -51,8 +52,8 @@ with test.closure("Test Projection from recording"):
         if depth_sensor:
             depth_scale = s.as_depth_sensor().get_depth_scale()
 
-        test.check_equal(s.get_info(rs.camera_info.name) == "Stereo Module", s.is_depth_sensor())
-        test.check_equal(s.get_info(rs.camera_info.name) == "RGB Camera", s.is_color_sensor())
+        check.equal(s.get_info(rs.camera_info.name) == "Stereo Module", s.is_depth_sensor())
+        check.equal(s.get_info(rs.camera_info.name) == "RGB Camera", s.is_color_sensor())
 
     count = 0
     for i in range(depth_intrin.width):
@@ -74,10 +75,8 @@ with test.closure("Test Projection from recording"):
                 count += 1
 
     MAX_ERROR_PERCENTAGE = 0.1
-    test.check(count * 100 / (depth_intrin.width * depth_intrin.height) < MAX_ERROR_PERCENTAGE)
+    check.is_true(count * 100 / (depth_intrin.width * depth_intrin.height) < MAX_ERROR_PERCENTAGE)
 
     for s in sensors:
         s.stop()
         s.close()
-################################################################################################
-test.print_results_and_exit()
