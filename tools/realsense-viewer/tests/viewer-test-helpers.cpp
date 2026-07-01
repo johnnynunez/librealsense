@@ -301,10 +301,14 @@ void viewer_test::enable_post_processing_filter( rs2::device_model & model,
                                                  std::shared_ptr< rs2::subdevice_model > sub,
                                                  std::shared_ptr< rs2::processing_block_model > pb )
 {
+    // The per-filter toggle is inert while the master post-processing toggle is off, and
+    // is_enabled() reflects only the per-filter flag (config-restore can leave it true while
+    // master is off). Ensure master is on first so is_enabled() means the filter is really active.
+    enable_post_processing( model, sub );
     if( pb->is_enabled() )
         return;
-    // The per-filter toggle is only rendered when the Post-Processing section is expanded and
-    // post-processing is enabled; the caller is expected to have done both. Off-state label:
+    // The per-filter toggle is only rendered when the Post-Processing section is expanded; the
+    // caller is expected to have expanded it. Off-state label:
     imgui->SetRef( "Control Panel" );
     std::string label = rsutils::string::from()
         << " " << rs2::textual_icons::toggle_off << "##" << model.id << ","

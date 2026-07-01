@@ -800,8 +800,14 @@ void option_model::write_value( float new_value, std::string & error_message )
         // Software post-processing filters run in-process (no FW round-trip), so a synchronous
         // write can't freeze the UI — and unlike the async path set_option reads the value back,
         // so the control reflects what was applied and never reverts to a stale value.
+        // Match set_option_async: back off subdevice_model::update()'s per-frame FW-option polling
+        // while the user is writing, so a filter-slider drag stays smooth on the no-change frames.
+        if( dev )
+            dev->last_user_set_stopwatch.reset();
         set_option( opt, new_value, error_message );
-        if( invalidate_flag )
+        // Only invalidate on a successful write. set_option swallows a failed write into
+        // error_message but still returns true, so gate on that to mirror the async did_write drain.
+        if( invalidate_flag && error_message.empty() )
             *invalidate_flag = true;
     }
     else
