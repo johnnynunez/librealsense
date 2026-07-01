@@ -20,11 +20,13 @@ def set_safety_mode( safety_sensor, mode, timeout = 8, interval = 0.5 ):
     attempt = 0
     while True:
         attempt += 1
+        last_exc = None  # reset so a stale error from an earlier iteration can't leak out at timeout
         try:
             safety_sensor.set_option( rs.option.safety_mode, mode )
             if safety_sensor.get_option( rs.option.safety_mode ) == float( mode ):
                 log.i( f"safety_mode set to {mode} after {attempt} attempt(s), {sw.get_elapsed():.1f}s" )
                 return
+            log.w( f"safety_mode set to {mode} accepted but read-back mismatched on attempt {attempt}, retrying" )
         except Exception as e:
             last_exc = e
         if sw.get_elapsed() >= timeout:

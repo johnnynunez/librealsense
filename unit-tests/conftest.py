@@ -742,7 +742,7 @@ def test_device_wrapped(test_device):
     yield dev, ctx
     if safety_sensor is not None:
         try:
-            from rspy import tests_wrapper
+            # tests_wrapper already imported in the setup block above (still bound across the yield)
             tests_wrapper.set_safety_mode(safety_sensor, rs.safety_mode.run)
         except Exception as e:
             # Best-effort: don't mask test failures, and the device may already be reset by teardown time.
