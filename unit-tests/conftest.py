@@ -895,14 +895,17 @@ def test_device_wrapped(test_device):
     is_d585s = dev.supports(rs.camera_info.name) and "D585S" in dev.get_info(rs.camera_info.name)
     safety_sensor = None
     if is_d585s:
+        from rspy import tests_wrapper  # local import: pulls in pyrealsense2, unavailable in infra-tests
         safety_sensor = dev.first_safety_sensor()
         if safety_sensor.get_option(rs.option.safety_mode) != rs.safety_mode.service:
             # Will throw on failure — intentional so we fail the test rather than run without service mode.
-            safety_sensor.set_option(rs.option.safety_mode, rs.safety_mode.service)
+            # Retries internally: the FW needs a few seconds after enumeration before it accepts the switch.
+            tests_wrapper.set_safety_mode(safety_sensor, rs.safety_mode.service)
     yield dev, ctx
     if safety_sensor is not None:
         try:
-            safety_sensor.set_option(rs.option.safety_mode, rs.safety_mode.run)
+            # tests_wrapper already imported in the setup block above (still bound across the yield)
+            tests_wrapper.set_safety_mode(safety_sensor, rs.safety_mode.run)
         except Exception as e:
             # Best-effort: don't mask test failures, and the device may already be reset by teardown time.
             log.warning(f"safety_mode restore skipped for {sn}: {e}")
