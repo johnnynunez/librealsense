@@ -156,16 +156,7 @@ namespace librealsense
 
             if (s->header.md_type_id != expected_type)
             {
-                // Commented out to avoid flooding the log. Some mismatched metadata types are expected, e.g dual-RGB
-                // color metadata on a depth sensor, and LPC/occupancy metadata on safety camera.
-                //std::string type
-                //    = (md_type_desc.count(s->header.md_type_id) > 0)
-                //    ? md_type_desc.at(s->header.md_type_id)
-                //    : (rsutils::string::from()
-                //        << "0x" << std::hex << static_cast<uint32_t>(s->header.md_type_id) << std::dec);
-                //LOG_DEBUG("Metadata type mismatch - actual: " << type << ", expected: 0x" << std::hex
-                //    << (uint32_t)expected_type << std::dec << " ("
-                //    << md_type_desc.at(expected_type) << ")");
+                // Some mismatched metadata types are expected, e.g dual-RGB color metadata on a depth sensor.
                 return false;
             }
 
