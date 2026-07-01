@@ -48,7 +48,19 @@ int main(int argc, char * argv[]) try
 
     //Pipeline could choose a device that does not have a color stream
     //If there is no color stream, choose to align depth to another stream
-    rs2_stream align_to = find_stream_to_align(profile.get_streams());
+    rs2_stream align_to;
+    try {
+        align_to = find_stream_to_align(profile.get_streams());
+    }
+    catch (const std::runtime_error&) {
+        // Default profile has no non-depth stream — retry with IR explicitly enabled
+        pipe.stop();
+        rs2::config cfg;
+        cfg.enable_stream(RS2_STREAM_DEPTH);
+        cfg.enable_stream(RS2_STREAM_INFRARED, 1);
+        profile = pipe.start(cfg);
+        align_to = find_stream_to_align(profile.get_streams());
+    }
 
     // Create a rs2::align object.
     // rs2::align allows us to perform alignment of depth frames to others frames
@@ -230,7 +242,7 @@ rs2_stream find_stream_to_align(const std::vector<rs2::stream_profile>& streams)
     for (rs2::stream_profile sp : streams)
     {
         rs2_stream profile_stream = sp.stream_type();
-        if (profile_stream != RS2_STREAM_DEPTH)
+        if (profile_stream != RS2_STREAM_DEPTH && sp.is<rs2::video_stream_profile>())
         {
             if (!color_stream_found)         //Prefer color
                 align_to = profile_stream;
