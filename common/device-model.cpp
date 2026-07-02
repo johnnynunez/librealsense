@@ -29,6 +29,16 @@ using namespace rs2::sw_update;
 
 namespace rs2
 {
+    // RAII guard pairing BeginDisabled/EndDisabled: keeps them balanced even if an exception is
+    // thrown between begin and the explicit end() call (which runs before the tooltip hover check).
+    struct disable_guard
+    {
+        bool active, ended;
+        disable_guard( bool a ) : active( a ), ended( false ) { if( active ) ImGui::BeginDisabled( true ); }
+        void end() { if( active && !ended ) { ended = true; ImGui::EndDisabled(); } }
+        ~disable_guard() { end(); }
+    };
+
     void imgui_easy_theming(ImFont*& font_dynamic, ImFont*& font_18, ImFont*& monofont, int& font_size)
     {
         ImGuiStyle& style = ImGui::GetStyle();
@@ -2881,15 +2891,7 @@ namespace rs2
                         ImGui::SetCursorPos({ windows_width - 42, pos.y - 3 });
 
                         const bool pb_available = pb->is_available();
-                        // RAII guard pairing BeginDisabled/EndDisabled: keeps them balanced
-                        // even if an exception is thrown between begin and the explicit end()
-                        // call below (which runs before the tooltip hover check).
-                        struct disable_guard {
-                            bool active, ended;
-                            disable_guard( bool a ) : active( a ), ended( false ) { if( active ) ImGui::BeginDisabled( true ); }
-                            void end() { if( active && !ended ) { ended = true; ImGui::EndDisabled(); } }
-                            ~disable_guard() { end(); }
-                        } dg( !pb_available );
+                        disable_guard dg( !pb_available );
                         try
                         {
                             ImGui::PushFont(window.get_font());
@@ -3029,15 +3031,7 @@ namespace rs2
                         ImGui::SetCursorPos({ windows_width - 42, pos.y - 3 });
 
                         const bool pb_available = pb->is_available();
-                        // RAII guard pairing BeginDisabled/EndDisabled: keeps them balanced
-                        // even if an exception is thrown between begin and the explicit end()
-                        // call below (which runs before the tooltip hover check).
-                        struct disable_guard {
-                            bool active, ended;
-                            disable_guard( bool a ) : active( a ), ended( false ) { if( active ) ImGui::BeginDisabled( true ); }
-                            void end() { if( active && !ended ) { ended = true; ImGui::EndDisabled(); } }
-                            ~disable_guard() { end(); }
-                        } dg( !pb_available );
+                        disable_guard dg( !pb_available );
                         try
                         {
                             ImGui::PushFont(window.get_font());

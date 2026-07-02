@@ -51,11 +51,11 @@ namespace rs2
         // When it returns false the enable toggle is grayed out in the UI.
         // Set by the owner after construction for filters with runtime constraints
         // (e.g. close range, which works on depth only and must be off while RGB streams).
-        std::function<bool()> available;
+        std::function<bool()> available_predicate;
         // Optional; returns the message explaining why the toggle is unavailable.
         std::function<std::string()> unavailable_tooltip;
 
-        bool is_available() const { return !available || available(); }
+        bool is_available() const { return !available_predicate || available_predicate(); }
 
         void embedded_filter_enable_disable(bool actual);
 
