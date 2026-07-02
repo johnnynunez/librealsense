@@ -142,11 +142,8 @@ namespace librealsense
             break;
         case RS2_FORMAT_M420:
         case RS2_FORMAT_NV12:
-            // D585/D535 firmware publishes NV12 (current) and/or legacy M420, plus YUY2, all on the color pin.
-            // Register NV12 conversions first so RGB target profile resolve to NV12 when it is present, and
-            // fall back to M420 when it is not (the converter breaks ties by registration order).
-            // Each format keeps its own "raw" passthrough (identity block), so NV12 and M420 stay streamable raw.
-            // YUY2 is exposed passthrough-only.
+            // Register NV12 conversions first so RGB resolve to NV12 when it is present, and to M420 when it is not
+            // (the converter breaks ties by registration order). YUY2 is exposed passthrough-only.
             color_ep.register_processing_block( processing_block_factory::create_pbf_vector< nv12_converter >(
                 RS2_FORMAT_NV12,
                 map_supported_color_formats( RS2_FORMAT_NV12 ),
