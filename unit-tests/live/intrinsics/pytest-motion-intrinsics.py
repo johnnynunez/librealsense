@@ -41,4 +41,4 @@ def test_motion_intrinsics(test_device):
         intrinsics = motion_profile.get_motion_intrinsics()
 
         log.debug(str(intrinsics))
-        check.is_true(len(str(intrinsics)) > 0)  # Checking if intrinsics has data
+        check.is_true(str(intrinsics), "motion intrinsics string is empty")  # Checking if intrinsics has data
