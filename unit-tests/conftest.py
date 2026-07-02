@@ -489,12 +489,9 @@ def pytest_runtest_call(item):
         item.stash[_retry_setup_exc_key] = None  # consumed
         return
 
-    # Record a call-phase failure into the per-test log. pytest-retry reruns a test by
-    # invoking pytest_runtest_call directly -- bypassing pytest_runtest_makereport -- and
-    # reopens the module log in 'w' mode, which truncates the original attempt's logged
-    # failure. Logging here means every attempt (including the last retry) records its
-    # failure, so a failing test's .log never ends on just the "Test:" header.
-    if outcome.excinfo is not None and outcome.excinfo[0].__name__ != "Skipped":
+    # Log every call-phase failure here so pytest-retry attempts (which bypass
+    # pytest_runtest_makereport) are also captured in the per-test .log file.
+    if outcome.excinfo is not None and not issubclass(outcome.excinfo[0], pytest.skip.Exception):
         ensure_newline()
         log.error(f"call failed: {outcome.excinfo[0].__name__}: {outcome.excinfo[1]}")
 

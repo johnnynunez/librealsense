@@ -80,10 +80,16 @@ def _find_build_dir():
 
 
 def setup_test_logging(config):
-    """Set up per-test log directory and JUnit XML output path (<build_dir>/<config>/unit-tests/)."""
-    build_dir = _find_build_dir()
+    """Set up per-test log directory and JUnit XML output path (<build_dir>/<config>/unit-tests/).
 
-    if build_dir:
+    RS_TEST_LOGDIR overrides the location — used by the infra E2E harness for a deterministic,
+    isolated log dir regardless of whether a build tree is present."""
+    env_logdir = os.environ.get('RS_TEST_LOGDIR')
+    build_dir = None if env_logdir else _find_build_dir()
+
+    if env_logdir:
+        logdir = env_logdir
+    elif build_dir:
         cmake_cache_path = os.path.join(build_dir, 'CMakeCache.txt')
         configuration = None
 
@@ -287,10 +293,8 @@ def open_log(file_path, device_id, config):
         return None
     log_path = os.path.join(logdir, _compose_log_name(file_path, device_id))
     try:
-        # First open this session truncates (clears a stale file from a previous run); reopens
-        # append, so pytest-retry attempts and --repeat/--count passes of the same (module, device)
-        # all accumulate in ONE file -- each attempt's setup, test output, failure, and teardown --
-        # instead of the latest attempt overwriting the previous ones.
+        # First open truncates any stale file from a previous run; subsequent opens append so
+        # pytest-retry attempts and --repeat/--count passes accumulate in one file.
         mode = 'a' if log_path in _opened_logs else 'w'
         handler = logging.FileHandler(log_path, mode=mode)
         handler.setFormatter(_NestedFormatter(_LOG_FORMAT, datefmt=_LOG_DATEFMT))
