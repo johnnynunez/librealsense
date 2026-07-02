@@ -29,4 +29,5 @@ class TestRetryTimeoutReset:
         assert rc == 0, out
         outcomes = parse_outcomes(out)
         assert outcomes.get("passed") == 1, out
+        assert outcomes.get("retried") == 1, f"expected exactly 1 retry: {out}"
         assert "+++ Timeout +++" not in out, out

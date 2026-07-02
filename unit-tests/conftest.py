@@ -449,16 +449,27 @@ def _reset_pytest_timeout_for_retry(item):
     fails and then retries can be killed ~110s into the retry with a
     `+++ Timeout +++` stack dump. Re-arming here gives each attempt a fresh
     budget while setup/teardown stay bounded by the outer protocol timer.
+
+    Fires on the *first* pytest_runtest_call too, not only on retries — a
+    deliberate side effect: setup time no longer counts against the call-phase
+    budget. In practice module_device_setup takes seconds; the previous
+    behaviour of setup eating into the 200s call budget was more of a footgun
+    than a feature. Setup itself is still bounded by the outer protocol timer
+    (which we cancel only after setup has completed and the call begins).
+
     Only applies when pytest-timeout is protocol-scoped (func_only=False,
     our default in pytest_configure); with func_only=True pytest-timeout
-    already re-arms per call itself.
+    already re-arms per call itself. `_get_item_settings` is a pytest-timeout
+    internal; a rename raises ImportError from the `from ... import` line
+    (or AttributeError if the module structure ever changes), both caught
+    below → helper degrades to no-op.
     """
     try:
         from pytest_timeout import _get_item_settings
-    except ImportError:
+    except (ImportError, AttributeError):
         return
     settings = _get_item_settings(item)
-    if not (settings.timeout and settings.timeout > 0 and settings.func_only is False):
+    if not (settings.timeout and settings.timeout > 0 and not settings.func_only):
         return
     hooks = item.config.pluginmanager.hook
     hooks.pytest_timeout_cancel_timer(item=item)
