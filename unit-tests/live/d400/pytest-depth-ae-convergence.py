@@ -68,11 +68,6 @@ TIMEOUT_ACCEL = max(ACCEL_MAX * 1.5, ACCEL_MAX + 0.5)
 # stop/close -> open storms can wedge the host USB controller on CI machines.
 SETTLE_DELAY = float(0.5)  # seconds
 
-# Default profile exercised by the gating (non-nightly) run
-DEFAULT_WIDTH = 640
-DEFAULT_HEIGHT = 480
-DEFAULT_FPS = 30
-
 # Available AE modes
 REGULAR = 0.0
 ACCELERATED = 1.0
@@ -263,19 +258,17 @@ def _prepare_depth_ae_sensor(dev):
     return sensor, supports_mode, depth_profiles
 
 
-def _select_default_profile(depth_profiles):
-    """Pick the default resolution for the gating run (prefer 640x480@30)."""
-    for p in depth_profiles:
-        vsp = p.as_video_stream_profile()
-        if vsp.width() == DEFAULT_WIDTH and vsp.height() == DEFAULT_HEIGHT and p.fps() == DEFAULT_FPS:
-            return p
-    # Fall back to any 30fps profile, otherwise the first candidate
-    for p in depth_profiles:
-        if p.fps() == DEFAULT_FPS:
-            return p
+def _select_default_profile(sensor, depth_profiles):
+    """Pick the depth sensor's default stream profile via the SDK's is_default() flag
+    (the camera's out-of-the-box resolution), mirroring how other live tests choose their
+    profile. Falls back to the first candidate profile if the sensor flags no default."""
+    default = next((p for p in sensor.profiles
+                    if p.stream_type() == rs.stream.depth and p.is_default()), None)
+    if default is not None:
+        return default
     vsp0 = depth_profiles[0].as_video_stream_profile()
-    log.warning(f"No {DEFAULT_WIDTH}x{DEFAULT_HEIGHT}@{DEFAULT_FPS} or any {DEFAULT_FPS}fps depth profile found; "
-                f"falling back to {vsp0.width()}x{vsp0.height()}@{depth_profiles[0].fps()}")
+    log.warning(f"Depth sensor flags no default profile; falling back to "
+                f"{vsp0.width()}x{vsp0.height()}@{depth_profiles[0].fps()}")
     return depth_profiles[0]
 
 
@@ -421,7 +414,7 @@ def test_depth_ae_convergence(test_device_wrapped):
     dev, _ = test_device_wrapped
     sensor, supports_mode, depth_profiles = _prepare_depth_ae_sensor(dev)
 
-    default_profile = _select_default_profile(depth_profiles)
+    default_profile = _select_default_profile(sensor, depth_profiles)
     vsp = default_profile.as_video_stream_profile()
     fmt = f"{vsp.width()}x{vsp.height()}@{default_profile.fps()}"
     log.info(f"Testing AE convergence on default depth profile [{fmt}]")
