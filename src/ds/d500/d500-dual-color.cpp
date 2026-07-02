@@ -1,7 +1,7 @@
 // License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2026 RealSense, Inc. All Rights Reserved.
 
-#include "d500-dual-rgb.h"
+#include "d500-dual-color.h"
 #include "d500-info.h"
 #include "environment.h"
 #include "metadata.h"
@@ -19,7 +19,7 @@ using rs_fourcc = rsutils::type::fourcc;
 
 namespace librealsense
 {
-    d500_dual_rgb::d500_dual_rgb( std::shared_ptr< const d500_info > const & dev_info )
+    d500_dual_color::d500_dual_color( std::shared_ptr< const d500_info > const & dev_info )
         : d500_device( dev_info )
         , device( dev_info )
         , _color_stream_1( new stream( RS2_STREAM_COLOR, 1 ) )
@@ -71,7 +71,7 @@ namespace librealsense
         register_color_metadata();
     }
 
-    void d500_dual_rgb::register_color_metadata()
+    void d500_dual_color::register_color_metadata()
     {
         auto & depth_sensor = get_depth_sensor();
 
@@ -97,7 +97,7 @@ namespace librealsense
         color_md.register_metadata();
     }
 
-    void d500_dual_rgb::register_color_extrinsics()
+    void d500_dual_color::register_color_extrinsics()
     {
         // Each RGB stream comes from the same physical imager as its matching infrared stream, so it shares
         // that stream's extrinsics.
@@ -112,7 +112,7 @@ namespace librealsense
     // {w,h,fps,format} color profiles in every published encoding (NV12/M420/YUY2). Map the color pins to Color 1 /
     // Color 2 in descending pin order, so the color indexes line up with the infrared 1 / 2 imagers (the lowest
     // color pin is co-located with the right / infrared-2 imager).
-    void d500_dual_rgb::resolve_color_stream( const std::vector< platform::stream_profile > & all,
+    void d500_dual_color::resolve_color_stream( const std::vector< platform::stream_profile > & all,
                                               const platform::stream_profile & p, rs2_stream & type, int & index )
     {
         if( p.format != rs_fourcc( 'M', '4', '2', '0' ) && p.format != rs_fourcc( 'N', 'V', '1', '2' )
@@ -146,7 +146,7 @@ namespace librealsense
     // Identify a color pin: it advertises the native color format (M420 or NV12) paired with a YUY2/YUYV
     // companion. The infrared pin also advertises the native color format (colored infrared) but pairs it with
     // UYVY/Y8I, not YUY2 - so the companion distinguishes color pins from the infrared pin. Holds across SKUs.
-    bool d500_dual_rgb::is_color_pin( const std::vector< platform::stream_profile > & all, uint32_t pin )
+    bool d500_dual_color::is_color_pin( const std::vector< platform::stream_profile > & all, uint32_t pin )
     {
         bool color = false, yuy2 = false;
         for( auto & q : all )
