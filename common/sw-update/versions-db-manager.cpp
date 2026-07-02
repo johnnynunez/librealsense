@@ -298,7 +298,9 @@ namespace rs2
 
         // Device names historically carried an "Intel " prefix; newer SDKs drop it.
         // Normalize so DB entries and reported names match regardless of the prefix.
-        static std::string strip_intel_prefix(const std::string &name)
+        // The prefix casing is a guaranteed invariant: the DB always uses exactly
+        // "Intel ", so a case-sensitive match is intentional here.
+        std::string versions_db_manager::strip_intel_prefix(const std::string &name)
         {
             static const std::string prefix = "Intel ";
             if (0 == name.compare(0, prefix.size(), prefix))
@@ -308,11 +310,16 @@ namespace rs2
 
         bool versions_db_manager::is_device_name_equal(const std::string &str_from_db, const std::string &str_compared, bool allow_wildcard)
         {
+            // Strip the legacy "Intel " prefix from both sides so comparisons are
+            // prefix-agnostic regardless of which side (DB or runtime) carries it.
             const std::string db = strip_intel_prefix(str_from_db);
             const std::string cmp = strip_intel_prefix(str_compared);
 
             if (allow_wildcard)
-                return (0 == db.compare(0, db.find('*'), cmp, 0, db.find('*')));
+            {
+                const auto wildcard_pos = db.find('*');
+                return (0 == db.compare(0, wildcard_pos, cmp, 0, wildcard_pos));
+            }
             else
                 return (db == cmp);
         }
