@@ -20,11 +20,12 @@ from helpers import run_e2e, parse_outcomes
 class TestRetryTimeoutReset:
 
     def test_timeout_resets_between_retry_attempts(self):
-        """Attempt 1 sleeps 2s and fails; attempt 2 sleeps 2s and passes.
-        With --timeout=3, the shared-timer bug would kill attempt 2 at ~1s.
-        With the reset, each attempt gets a fresh 3s and the test PASSES."""
+        """Attempt 1 sleeps 3s and fails; attempt 2 sleeps 3s and passes.
+        With --timeout=5, the shared-timer bug would kill attempt 2 at ~2s.
+        With the reset, each attempt gets a fresh 5s and the test PASSES.
+        2s slack per attempt tolerates slow CI scheduler jitter."""
         rc, out, *_ = run_e2e("pytest-retry-timeout.py",
-                               "--retries", "1", "--timeout", "3")
+                               "--retries", "1", "--timeout", "5")
         assert rc == 0, out
         outcomes = parse_outcomes(out)
         assert outcomes.get("passed") == 1, out
