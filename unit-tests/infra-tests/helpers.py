@@ -195,7 +195,8 @@ def run_e2e(test_filename, *extra_pytest_args, env=None):
             for name in os.listdir(e2e_logdir):
                 path = os.path.join(e2e_logdir, name)
                 if os.path.isfile(path):
-                    tracking["logs"][name] = open(path, encoding="utf-8", errors="replace").read()
+                    with open(path, encoding="utf-8", errors="replace") as fh:
+                        tracking["logs"][name] = fh.read()
 
         return p.returncode, p.stdout, tracking
 
