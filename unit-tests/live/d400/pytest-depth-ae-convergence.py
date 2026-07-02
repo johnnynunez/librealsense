@@ -402,13 +402,12 @@ def _run_ae_convergence(sensor, supports_mode, depth_profiles):
             for name in failed_configs:
                 log.info(f"  - {name}")
 
-        # Base tolerance is 10%, which is meaningful for the nightly full-matrix run. With a
-        # tiny config count (e.g. the single-profile gating run has at most REGULAR+ACCELERATED)
-        # a flat 10% would hard-fail on a single flaky config, so scale the threshold up to allow
-        # one config to fail regardless of matrix size. Nightly (many configs) stays at 10%.
-        FAILURE_THRESHOLD = max(10.0, 100.0 / max(total_configs, 1))
+        # Apply 10% threshold: only fail if more than 10% of configs failed. The SAME bar is
+        # used for the gating (single profile) and nightly (full matrix) runs — the only
+        # difference between them is how many profiles are exercised, not the pass criterion.
+        FAILURE_THRESHOLD = 10.0  # 10%
         assert failure_rate <= FAILURE_THRESHOLD, \
-            f"Failure rate {failure_rate:.1f}% exceeds {FAILURE_THRESHOLD:.1f}% threshold ({failure_count}/{total_configs} configs failed)"
+            f"Failure rate {failure_rate:.1f}% exceeds {FAILURE_THRESHOLD}% threshold ({failure_count}/{total_configs} configs failed)"
     else:
         log.warning("No configurations were tested")
 
