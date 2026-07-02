@@ -439,9 +439,36 @@ def pytest_runtest_makereport(item, call):
         log.debug(f"Test execution took {report.duration:.3f}s")
 
 
+def _reset_pytest_timeout_for_retry(item):
+    """Re-arm pytest-timeout's per-item timer so retries get a fresh --timeout budget.
+
+    pytest-timeout arms its timer in a `pytest_runtest_protocol` hookwrapper whose
+    yield covers setup + all call attempts + teardown. pytest-retry re-invokes
+    `pytest_runtest_call` from inside `pytest_runtest_makereport`, still under
+    that outer yield, so retries share the original budget — a 90s test that
+    fails and then retries can be killed ~110s into the retry with a
+    `+++ Timeout +++` stack dump. Re-arming here gives each attempt a fresh
+    budget while setup/teardown stay bounded by the outer protocol timer.
+    Only applies when pytest-timeout is protocol-scoped (func_only=False,
+    our default in pytest_configure); with func_only=True pytest-timeout
+    already re-arms per call itself.
+    """
+    try:
+        from pytest_timeout import _get_item_settings
+    except ImportError:
+        return
+    settings = _get_item_settings(item)
+    if not (settings.timeout and settings.timeout > 0 and settings.func_only is False):
+        return
+    hooks = item.config.pluginmanager.hook
+    hooks.pytest_timeout_cancel_timer(item=item)
+    hooks.pytest_timeout_set_timer(item=item, settings=settings)
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item):
-    """Surface pytest-check soft-check failures in the call phase.
+    """Reset pytest-timeout between retry attempts + surface pytest-check
+    soft-check failures in the call phase.
 
     pytest-check defers its failures to pytest_runtest_makereport. But pytest-retry
     reruns a test by invoking pytest_runtest_call directly and building the report
@@ -456,6 +483,8 @@ def pytest_runtest_call(item):
     one stays failed) and keeps them off the teardown report. Scoped to fire only for
     the buggy case; every other path is left to pytest-check unchanged.
     """
+    _reset_pytest_timeout_for_retry(item)
+
     outcome = yield
     try:
         from pytest_check import check_log
