@@ -3,7 +3,6 @@
 # call phase would raise KeyError('<fixture>'), masking the real error. The conftest guard
 # surfaces the real error instead, so the retry sees the true (retryable) exception.
 import pytest
-pytestmark = [pytest.mark.device_each("D455")]
 _base = 0
 _dep = 0
 

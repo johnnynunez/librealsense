@@ -479,10 +479,13 @@ def pytest_runtest_call(item):
     """
     outcome = yield
 
+    # Match only the fixture-missing KeyError pytest injects, not a test-body KeyError.
     setup_exc = item.stash.get(_retry_setup_exc_key, None)
     if (setup_exc is not None and outcome.excinfo is not None
-            and outcome.excinfo[0] is KeyError):
+            and outcome.excinfo[0] is KeyError
+            and str(outcome.excinfo[1]).strip("'\"") in item.fixturenames):
         outcome.force_exception(setup_exc)
+        item.stash[_retry_setup_exc_key] = None  # consumed
         return
 
     try:
