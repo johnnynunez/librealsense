@@ -20,7 +20,6 @@ import sys
 import os
 import re
 import logging
-from _pytest.stash import StashKey
 
 # Defense against ROS 2 launch.logging: when ROS is sourced, launch_testing's
 # pytest entry-point transitively imports launch.logging, which installs a
@@ -424,7 +423,7 @@ def _test_log_banner(request):
 
 # Stash a retry-setup-phase failure so pytest_runtest_call can surface the real error
 # instead of the masking KeyError (see pytest_runtest_call for the full story).
-_retry_setup_exc_key = StashKey()
+_retry_setup_exc_key = pytest.StashKey()
 
 
 @pytest.hookimpl(hookwrapper=True)
