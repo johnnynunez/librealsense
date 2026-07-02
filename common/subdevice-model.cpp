@@ -311,11 +311,11 @@ namespace rs2
             auto model = std::make_shared<embedded_filter_model>(
                 this, shared_filter->get_type(), shared_filter, viewer, error_message);
 
-            // Dual-RGB variants (0C01/0C04/0C07) share a depth+color sensor, so close-range runs depth-only.
+            // Dual-color variants (0C01/0C04/0C07) share a depth+color sensor, so close-range runs depth-only.
             std::string device_pid = s->supports( RS2_CAMERA_INFO_PRODUCT_ID )
                                    ? s->get_info( RS2_CAMERA_INFO_PRODUCT_ID ) : "";
-            const bool is_dual_rgb = ( device_pid == "0C01" || device_pid == "0C04" || device_pid == "0C07" );
-            if( shared_filter->get_type() == RS2_EMBEDDED_FILTER_TYPE_CLOSE_RANGE && is_dual_rgb )
+            const bool is_dual_color = ( device_pid == "0C01" || device_pid == "0C04" || device_pid == "0C07" );
+            if( shared_filter->get_type() == RS2_EMBEDDED_FILTER_TYPE_CLOSE_RANGE && is_dual_color )
             {
                 // Safe to capture this: the lambda lives in model which lives in embedded_filters,
                 // a member of this subdevice_model — so it cannot outlive its owner.
@@ -329,7 +329,7 @@ namespace rs2
                     }
                     return true;
                 };
-                model->unavailable_tooltip = "Improved Close Range Depth cannot be activated while RGB streams are active";
+                model->unavailable_tooltip = "Improved Close Range Depth cannot be activated while color streams are active";
             }
 
             embedded_filters.push_back(model);

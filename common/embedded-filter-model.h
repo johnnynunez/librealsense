@@ -50,7 +50,7 @@ namespace rs2
         // Optional predicate; null means always available.
         // When it returns false the enable toggle is grayed out in the UI.
         // Set by the owner after construction for filters with runtime constraints
-        // (e.g. close range, which works on depth only and must be off while RGB streams).
+        // (e.g. close range, which works on depth only and must be off while color streams).
         std::function<bool()> available_predicate;
         // Optional message shown when the toggle is unavailable; empty = none.
         std::string unavailable_tooltip;
