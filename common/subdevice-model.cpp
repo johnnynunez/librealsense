@@ -319,22 +319,17 @@ namespace rs2
             {
                 // Safe to capture this: the lambda lives in model which lives in embedded_filters,
                 // a member of this subdevice_model — so it cannot outlive its owner.
-                auto is_color_enabled = [this]()
+                model->available_predicate = [this]()
                 {
                     for( auto& p : profiles )
                     {
                         auto it = stream_enabled.find( p.unique_id() );
-                        if( it == stream_enabled.end() || !it->second ) continue;
-                        if( p.stream_type() == RS2_STREAM_COLOR )
-                            return true;
+                        if( it != stream_enabled.end() && it->second && p.stream_type() == RS2_STREAM_COLOR )
+                            return false;
                     }
-                    return false;
+                    return true;
                 };
-                model->available_predicate = [is_color_enabled]() { return !is_color_enabled(); };
-                model->unavailable_tooltip = []() -> std::string
-                {
-                    return "Improved Close Range Depth works on depth only; please disable the RGB stream";
-                };
+                model->unavailable_tooltip = "Improved Close Range Depth cannot be activated while RGB streams are active";
             }
 
             embedded_filters.push_back(model);

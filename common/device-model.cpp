@@ -3086,13 +3086,9 @@ namespace rs2
                             }
 
                             dg.end();
-                            if( !pb_available && pb->unavailable_tooltip
+                            if( !pb_available && !pb->unavailable_tooltip.empty()
                                 && ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenDisabled ) )
-                            {
-                                auto tooltip = pb->unavailable_tooltip();
-                                if( !tooltip.empty() )
-                                    RsImGui::CustomTooltip( "%s", tooltip.c_str() );
-                            }
+                                RsImGui::CustomTooltip( "%s", pb->unavailable_tooltip.c_str() );
 
                             ImGui::PopStyleColor(5);
                             ImGui::PopFont();
