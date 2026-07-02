@@ -7,7 +7,7 @@ import logging
 log = logging.getLogger(__name__)
 
 pytestmark = [
-    pytest.mark.device_each("D585S"),
+    pytest.mark.device_each("D585"),
     pytest.mark.context("nightly"),
 ]
 
