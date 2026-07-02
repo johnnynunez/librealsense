@@ -20,6 +20,7 @@ import sys
 import os
 import re
 import logging
+from _pytest.stash import StashKey
 
 # Defense against ROS 2 launch.logging: when ROS is sourced, launch_testing's
 # pytest entry-point transitively imports launch.logging, which installs a
@@ -421,6 +422,19 @@ def _test_log_banner(request):
     ensure_newline()
 
 
+# Stash a retry-setup-phase failure so pytest_runtest_call can surface the real error
+# instead of the masking KeyError (see pytest_runtest_call for the full story).
+_retry_setup_exc_key = StashKey()
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_setup(item):
+    """Record whether the setup phase failed, so pytest_runtest_call can recover the real
+    error if pytest-retry then runs the call phase on a failed retry-setup."""
+    outcome = yield
+    item.stash[_retry_setup_exc_key] = outcome.excinfo[1] if outcome.excinfo else None
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """Log test duration and any failures/errors."""
@@ -455,8 +469,22 @@ def pytest_runtest_call(item):
     on every attempt (a genuinely flaky soft-check test passes on retry; a persistent
     one stays failed) and keeps them off the teardown report. Scoped to fire only for
     the buggy case; every other path is left to pytest-check unchanged.
+
+    Also unmasks a pytest-retry bug: pytest-retry reruns a test by calling pytest_runtest_setup
+    then pytest_runtest_call unconditionally (retry_plugin ~L237-238), ignoring whether the
+    retry-setup failed. When it did, funcargs lack the fixture and pytest_pyfunc_call raises
+    `KeyError: '<fixture>'`, hiding the real setup error and confusing the retry decision.
+    We swap that KeyError back for the recorded setup exception so the failure is
+    diagnosable and pytest-retry sees the true (retryable) error.
     """
     outcome = yield
+
+    setup_exc = item.stash.get(_retry_setup_exc_key, None)
+    if (setup_exc is not None and outcome.excinfo is not None
+            and outcome.excinfo[0] is KeyError):
+        outcome.force_exception(setup_exc)
+        return
+
     try:
         from pytest_check import check_log
     except ImportError:
