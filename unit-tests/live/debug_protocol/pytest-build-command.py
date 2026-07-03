@@ -12,6 +12,8 @@ pytestmark = [
     pytest.mark.context("nightly"),
     pytest.mark.device("D400*"),
     pytest.mark.device_each("D555"),
+    pytest.mark.device_each("D585"),
+    pytest.mark.device_exclude("D585S"),
 ]
 
 
