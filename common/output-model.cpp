@@ -105,7 +105,7 @@ void output_model::thread_loop()
                 }
             }
 
-            while( enable_firmware_logs )
+            while( enable_firmware_logs && ! to_stop )
             {
                 for( auto & it : loggers )
                 {
@@ -146,7 +146,7 @@ void output_model::thread_loop()
                                 add_log( message.get_severity(), __FILE__, 0, ss.str() );
                             }
 
-                            if( !enable_firmware_logs && fwlogger.get_number_of_fw_logs() == 0 )
+                            if( ( !enable_firmware_logs || to_stop ) && fwlogger.get_number_of_fw_logs() == 0 )
                                 break;
                         }
                     }
