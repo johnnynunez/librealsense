@@ -440,30 +440,9 @@ def pytest_runtest_makereport(item, call):
 
 
 def _reset_pytest_timeout_for_retry(item):
-    """Re-arm pytest-timeout's per-item timer so retries get a fresh --timeout budget.
-
-    pytest-timeout arms its timer in a `pytest_runtest_protocol` hookwrapper whose
-    yield covers setup + all call attempts + teardown. pytest-retry re-invokes
-    `pytest_runtest_call` from inside `pytest_runtest_makereport`, still under
-    that outer yield, so retries share the original budget — a 90s test that
-    fails and then retries can be killed ~110s into the retry with a
-    `+++ Timeout +++` stack dump. Re-arming here gives each attempt a fresh
-    budget while setup/teardown stay bounded by the outer protocol timer.
-
-    Fires on the *first* pytest_runtest_call too, not only on retries — a
-    deliberate side effect: setup time no longer counts against the call-phase
-    budget. In practice module_device_setup takes seconds; the previous
-    behaviour of setup eating into the 200s call budget was more of a footgun
-    than a feature. Setup itself is still bounded by the outer protocol timer
-    (which we cancel only after setup has completed and the call begins).
-
-    Only applies when pytest-timeout is protocol-scoped (func_only=False,
-    our default in pytest_configure); with func_only=True pytest-timeout
-    already re-arms per call itself. `_get_item_settings` is a pytest-timeout
-    internal; a rename raises ImportError from the `from ... import` line
-    (or AttributeError if the module structure ever changes), both caught
-    below → helper degrades to no-op.
-    """
+    """Re-arm pytest-timeout so each pytest-retry attempt gets a fresh --timeout budget
+    (the outer protocol yield otherwise makes retries share the first attempt's budget).
+    Also fires on first call: setup no longer counts against the call budget."""
     try:
         from pytest_timeout import _get_item_settings
     except (ImportError, AttributeError):
