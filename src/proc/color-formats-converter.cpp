@@ -730,16 +730,24 @@ namespace librealsense
                 // fill the destination with y values
                 // while y is on 2 lines, and uv on the third line
                 auto start_of_y = src + k * width;
-
-                for (int pix = 0; pix < 2 * width; pix += 16)
+                const int total = 2 * width;
+                const int aligned = total - (total % 16);
+                int pix = 0;
+                for (; pix < aligned; pix += 16)
                 {
                     uint16_t y[16];
-                    for (int dst_idx = 0, src_idx = 0; dst_idx < 16; dst_idx += 1, ++src_idx)
+                    for (int i = 0; i < 16; ++i)
                     {
-                        y[dst_idx] = start_of_y[src_idx + pix] << 8;
+                        y[i] = start_of_y[pix + i] << 8;
                     }
                     std::memcpy( dst, y, sizeof y );
                     dst += sizeof y;
+                }
+                for (; pix < total; ++pix)
+                {
+                    uint16_t v = uint16_t(start_of_y[pix]) << 8;
+                    std::memcpy( dst, &v, sizeof v );
+                    dst += sizeof v;
                 }
             }
             return;
