@@ -96,9 +96,10 @@ def test_laser_power_frame_drops(test_device_wrapped):
     """No frame drops when sweeping laser power through its full range."""
     dev, ctx = test_device_wrapped
     product_line = dev.get_info(rs.camera_info.product_line)
+    product_name = dev.get_info(rs.camera_info.name)
+    if 'D401' in product_name or 'D405' in product_name:
+        pytest.skip(f"{product_name} does not support laser power")
     depth_sensor = dev.first_depth_sensor()
-    if not depth_sensor.supports(rs.option.laser_power):
-        pytest.skip("Device does not support laser power")
     depth_profile = next(p for p in depth_sensor.profiles if p.is_default())
     checker = FrameDropChecker(product_line, is_depth=True)
 
