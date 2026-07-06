@@ -1,7 +1,7 @@
 # License: Apache 2.0. See LICENSE file in root directory.
 # Copyright(c) 2020 RealSense, Inc. All Rights Reserved.
 
-# Currently, we exclude D457 and D401 as it's failing
+# Currently, we exclude D401 as it's failing
 
 import platform
 import pytest
@@ -12,7 +12,6 @@ log = logging.getLogger(__name__)
 
 pytestmark = [
     pytest.mark.device("D400*"),
-    pytest.mark.device_exclude("D457"),
     pytest.mark.device_exclude("D401"),
     pytest.mark.context("nightly"),
 ]
@@ -84,6 +83,10 @@ def run_option_changes(sensor, checker, product_line):
             if orig_opt_value.type in (rs.option_type.integer, rs.option_type.float):
                 old_value = orig_opt_value.value
                 opt_range = sensor.get_option_range(option)
+                # e.g. Exposure while AE is on reads as 0 but range starts at 1 — restoring old_value would throw
+                if not (opt_range.min <= old_value <= opt_range.max):
+                    log.debug(f"{option}: skipping, current {old_value} outside range [{opt_range.min}, {opt_range.max}]")
+                    continue
                 new_value = opt_range.min if old_value != opt_range.min else opt_range.max
                 log.debug(f"{option}: {old_value} -> {new_value}")
                 set_new_value(checker, sensor, option, new_value)
