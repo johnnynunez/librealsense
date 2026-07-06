@@ -1603,9 +1603,11 @@ def settled_device(test_device):
     return dev, ctx
 
 
-@pytest.fixture(scope="module")
+# Function-scoped (not module): the tier is device-independent (depends only on --context), so a
+# module-scoped fixture would trip the per-camera fixture guard on benches with >1 D400 camera.
+@pytest.fixture
 def coverage_tier(request):
-    """Resolve the coverage tier (gating/semi/full) once per module from --context."""
+    """Resolve the coverage tier (gating/semi/full) from --context."""
     tier = resolve_coverage_tier(request.config)
     log.info(f"FPS-performance coverage tier: {tier}")
     return tier
