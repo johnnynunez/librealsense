@@ -771,27 +771,47 @@ namespace librealsense
             }
         }
 
-        // Parse the video-streaming FORMAT descriptors from a raw USB configuration descriptor and return the set of fourccs the device
-        // actually advertises. fourcc is encoded big-endian to match the value derived from the MF media subtype GUID in foreach_profile.
+        // Normalize a fourcc through fourcc_map so aliased pairs (e.g. Y8<->GREY, D16<->Z16, BYR2<->RW16) compare
+        // equal regardless of which alias the USB descriptor and Media Foundation each happen to report.
+        static uint32_t normalize_fourcc( uint32_t fcc )
+        {
+            auto it = fourcc_map.find( fcc );
+            return it != fourcc_map.end() ? it->second : fcc;
+        }
+
+        // Parse the VideoStreaming FORMAT descriptors from a raw USB configuration descriptor and return the set of
+        // (normalized) fourccs the device advertises. fourcc is encoded big-endian to match the value derived from the
+        // MF media subtype GUID in foreach_profile. Format descriptors share bDescriptorType 0x24 with VideoControl
+        // class descriptors and their subtypes collide (e.g. VC extension unit 0x06 vs VS MJPEG format 0x06), so only
+        // trust them inside a VideoStreaming interface. Returns empty on a malformed descriptor so the caller falls
+        // back to no filtering rather than a partial set that would drop real formats.
         static std::set<uint32_t> parse_native_fourccs( const std::vector<uint8_t> & cfg )
         {
+            const uint8_t DT_INTERFACE = 0x04, IF_CLASS_VIDEO = 0x0E, IF_SUBCLASS_VS = 0x02;
+            const uint8_t DT_CS_INTERFACE = 0x24, VS_FORMAT_UNCOMPRESSED = 0x04, VS_FORMAT_MJPEG = 0x06, VS_FORMAT_FRAME_BASED = 0x10;
+            const uint32_t MJPG = ( uint32_t( 'M' ) << 24 ) | ( uint32_t( 'J' ) << 16 ) | ( uint32_t( 'P' ) << 8 ) | uint32_t( 'G' );
+
             std::set<uint32_t> formats;
-            for( size_t o = 0; o + 3 <= cfg.size(); )
+            bool in_vs_interface = false;
+            for( size_t offset = 0; offset + 2 <= cfg.size(); )
             {
-                uint8_t len = cfg[o];
-                if( len < 3 || o + len > cfg.size() )
-                    break;
-                const uint8_t CS_INTERFACE = 0x24, VS_FORMAT_UNCOMPRESSED = 0x04, VS_FORMAT_MJPEG = 0x06, VS_FORMAT_FRAME_BASED = 0x10;
-                if( cfg[o + 1] == CS_INTERFACE )
+                uint8_t len = cfg[offset];
+                if( len < 2 || offset + len > cfg.size() )
+                    return {};  // malformed - abandon parse (never return a partial set)
+
+                uint8_t dtype = cfg[offset + 1];
+                if( dtype == DT_INTERFACE && len >= 7 )
+                    in_vs_interface = ( cfg[offset + 5] == IF_CLASS_VIDEO && cfg[offset + 6] == IF_SUBCLASS_VS );
+                else if( in_vs_interface && dtype == DT_CS_INTERFACE && len >= 3 )
                 {
-                    uint8_t subtype = cfg[o + 2];
+                    uint8_t subtype = cfg[offset + 2];
                     if( ( subtype == VS_FORMAT_UNCOMPRESSED || subtype == VS_FORMAT_FRAME_BASED ) && len >= 9 )
-                        formats.insert( ( uint32_t( cfg[o + 5] ) << 24 ) | ( uint32_t( cfg[o + 6] ) << 16 )
-                                        | ( uint32_t( cfg[o + 7] ) << 8 ) | uint32_t( cfg[o + 8] ) );  // guidFormat Data1 = fourcc
-                    else if( subtype == VS_FORMAT_MJPEG )
-                        formats.insert( ( uint32_t( 'M' ) << 24 ) | ( uint32_t( 'J' ) << 16 ) | ( uint32_t( 'P' ) << 8 ) | uint32_t( 'G' ) );
+                        formats.insert( normalize_fourcc( ( uint32_t( cfg[offset + 5] ) << 24 ) | ( uint32_t( cfg[offset + 6] ) << 16 )
+                                                          | ( uint32_t( cfg[offset + 7] ) << 8 ) | uint32_t( cfg[offset + 8] ) ) );  // guidFormat Data1 = fourcc
+                    else if( subtype == VS_FORMAT_MJPEG )  // MJPEG format descriptor has no guidFormat; fourcc is "MJPG" by convention
+                        formats.insert( normalize_fourcc( MJPG ) );
                 }
-                o += len;
+                offset += len;
             }
             return formats;
         }
@@ -815,6 +835,11 @@ namespace librealsense
                         << info.pid << " , id:" << info.unique_id << std::dec);
                 }
                 _native_formats = parse_native_fourccs( config_descriptor );
+                // If the descriptor is unreadable/unparsable we keep all MF-reported formats (a usable device) rather than dropping
+                // everything. Warn, since it disables the filter that hides host-injected media types (e.g. NV12 decoded from MJPEG).
+                if( _native_formats.empty() )
+                    LOG_WARNING( "USB configuration descriptor unavailable/unparsable for device " << std::hex << info.vid << ":" <<
+                                 info.pid << std::dec << " , id:" << info.unique_id << " - host-injected media types not filtered" );
             }
             catch (...)
             {
@@ -969,7 +994,7 @@ namespace librealsense
                     // Drop media types MF reports but the device does not advertise in its USB configuration descriptor.
                     // e.g. camera stack exposes an NV12 decoded from MJPEG. Streaming such a host-injected type via the
                     // native path can fail, so expose only true device formats.
-                    if( ! _native_formats.empty() && _native_formats.find( device_fourcc ) == _native_formats.end() )
+                    if( ! _native_formats.empty() && _native_formats.find( normalize_fourcc( device_fourcc ) ) == _native_formats.end() )
                     {
                         LOG_DEBUG( "Dropping non-native media type " << fourcc( device_fourcc ) << " " << width << "x"
                                    << height << " @" << currFps << "Hz (not in USB configuration descriptor)" );

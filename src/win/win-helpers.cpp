@@ -298,14 +298,21 @@ namespace librealsense
             };
 
             std::vector<uint8_t> buf;
-            // First read the 9-byte header to learn wTotalLength, then read the whole thing.
-            if( fetch( sizeof( USB_CONFIGURATION_DESCRIPTOR ), buf ) < sizeof( USB_DESCRIPTOR_REQUEST ) + sizeof( USB_CONFIGURATION_DESCRIPTOR ) )
+            // Request a generous buffer up-front: some xHCI stacks STALL a short (header-sized) GET_DESCRIPTOR, and
+            // it usually returns the whole descriptor in one shot. Learn wTotalLength from the header and re-read only
+            // if the descriptor is larger than our initial buffer.
+            const USHORT initial_len = 4096;
+            DWORD returned = fetch( initial_len, buf );
+            if( returned < sizeof( USB_DESCRIPTOR_REQUEST ) + sizeof( USB_CONFIGURATION_DESCRIPTOR ) )
                 return {};
             auto cfg = reinterpret_cast< USB_CONFIGURATION_DESCRIPTOR * >( buf.data() + sizeof( USB_DESCRIPTOR_REQUEST ) );
             USHORT total = cfg->wTotalLength;
-            if( total <= sizeof( USB_CONFIGURATION_DESCRIPTOR ) )
+            if( total < sizeof( USB_CONFIGURATION_DESCRIPTOR ) )
                 return {};
-            DWORD returned = fetch( total, buf );
+            if( total > initial_len )
+                returned = fetch( total, buf );
+            // Guard against a truncated transfer (hub delivered fewer bytes than wTotalLength) - the tail would be
+            // zero-padded, so bail rather than parse incomplete data. Covers both the fast path and the re-read.
             if( returned < sizeof( USB_DESCRIPTOR_REQUEST ) + total )
                 return {};
             return std::vector<uint8_t>( buf.begin() + sizeof( USB_DESCRIPTOR_REQUEST ),
