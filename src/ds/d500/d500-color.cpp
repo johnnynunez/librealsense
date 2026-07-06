@@ -142,17 +142,15 @@ namespace librealsense
             break;
         case RS2_FORMAT_M420:
         case RS2_FORMAT_NV12:
-            // M420 registered before NV12 so RGB targets resolve to M420 when present and fall back to NV12 when it is not
-            // (converter breaks ties by registration order). M420 is the safe default - opening NV12 fails destructively on some
-            // firmware, so it must not be the default RGB source. NV12 stays exposed for firmware where it is the only encoding.
-            // YUY2 is exposed passthrough-only.
-            color_ep.register_processing_block( processing_block_factory::create_pbf_vector< m420_converter >(
-                RS2_FORMAT_M420,
-                map_supported_color_formats( RS2_FORMAT_M420 ),
-                RS2_STREAM_COLOR ) );
+            // NV12 registered before M420 so RGB targets resolve to NV12 when present, and to M420 when it is not
+            // (converter breaks ties by registration order). YUY2 is exposed passthrough-only.
             color_ep.register_processing_block( processing_block_factory::create_pbf_vector< nv12_converter >(
                 RS2_FORMAT_NV12,
                 map_supported_color_formats( RS2_FORMAT_NV12 ),
+                RS2_STREAM_COLOR ) );
+            color_ep.register_processing_block( processing_block_factory::create_pbf_vector< m420_converter >(
+                RS2_FORMAT_M420,
+                map_supported_color_formats( RS2_FORMAT_M420 ),
                 RS2_STREAM_COLOR ) );
             color_ep.register_processing_block(
                 processing_block_factory::create_id_pbf( RS2_FORMAT_YUYV, RS2_STREAM_COLOR ) );

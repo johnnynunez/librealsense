@@ -43,17 +43,16 @@ namespace librealsense
 
         raw_depth_sensor->set_stream_id_resolver( resolve_color_stream );
 
-        // M420 registered before NV12 so RGB targets resolve to M420 when present and fall back to NV12 when it is not
-        // (converter breaks ties by registration order). M420 is the safe default - opening NV12 fails destructively on some
-        // firmware, so it must not be the default RGB source. NV12 stays exposed for firmware where it is the only encoding.
+        // NV12 registered before M420 so RGB targets resolve to NV12 when present, and to M420 when it is not
+        // (converter breaks ties by registration order).
         for( auto target : { RS2_FORMAT_RGB8, RS2_FORMAT_RGBA8, RS2_FORMAT_BGR8, RS2_FORMAT_BGRA8 } )
         {
-            depth_sensor.register_processing_block( { { RS2_FORMAT_M420, RS2_STREAM_COLOR } },
-                                                      { { target, RS2_STREAM_COLOR, 1 }, { target, RS2_STREAM_COLOR, 2 } },
-                                                      [target]() { return std::make_shared< m420_converter >( target ); } );
             depth_sensor.register_processing_block( { { RS2_FORMAT_NV12, RS2_STREAM_COLOR } },
                                                       { { target, RS2_STREAM_COLOR, 1 }, { target, RS2_STREAM_COLOR, 2 } },
                                                       [target]() { return std::make_shared< nv12_converter >( target ); } );
+            depth_sensor.register_processing_block( { { RS2_FORMAT_M420, RS2_STREAM_COLOR } },
+                                                      { { target, RS2_STREAM_COLOR, 1 }, { target, RS2_STREAM_COLOR, 2 } },
+                                                      [target]() { return std::make_shared< m420_converter >( target ); } );
         }
 
         // Expose each raw encoding (NV12, M420, YUY2) as a passthrough color profile so it can be streamed as-is.
