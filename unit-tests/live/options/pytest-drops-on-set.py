@@ -82,7 +82,7 @@ def run_option_changes(sensor, checker, product_line):
                 opt_range = sensor.get_option_range(option)
                 # e.g. Exposure while AE is on reads as 0 but range starts at 1 — restoring old_value would throw
                 if not (opt_range.min <= old_value <= opt_range.max):
-                    log.debug(f"{option}: skipping, current {old_value} outside range [{opt_range.min}, {opt_range.max}]")
+                    log.info(f"{option}: skipping, current {old_value} outside range [{opt_range.min}, {opt_range.max}]")
                     continue
                 new_value = opt_range.min if old_value != opt_range.min else opt_range.max
                 log.debug(f"{option}: {old_value} -> {new_value}")
@@ -157,8 +157,12 @@ def test_color_options_frame_drops(test_device_wrapped):
         else:
             raise
 
-    color_profile = next(p for p in color_sensor.profiles
-                         if p.is_default() and p.stream_type() == rs.stream.color)
+    color_profile = next(
+        (p for p in color_sensor.profiles
+         if p.is_default() and p.stream_type() == rs.stream.color),
+        None)
+    if color_profile is None:
+        pytest.fail(f"{product_name}: no default color-stream profile found on sensor")
     checker = FrameDropChecker(product_line, is_depth=False)
 
     color_sensor.open(color_profile)
