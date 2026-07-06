@@ -771,6 +771,31 @@ namespace librealsense
             }
         }
 
+        // Parse the video-streaming FORMAT descriptors from a raw USB configuration descriptor and return the set of fourccs the device
+        // actually advertises. fourcc is encoded big-endian to match the value derived from the MF media subtype GUID in foreach_profile.
+        static std::set<uint32_t> parse_native_fourccs( const std::vector<uint8_t> & cfg )
+        {
+            std::set<uint32_t> formats;
+            for( size_t o = 0; o + 3 <= cfg.size(); )
+            {
+                uint8_t len = cfg[o];
+                if( len < 3 || o + len > cfg.size() )
+                    break;
+                const uint8_t CS_INTERFACE = 0x24, VS_FORMAT_UNCOMPRESSED = 0x04, VS_FORMAT_MJPEG = 0x06, VS_FORMAT_FRAME_BASED = 0x10;
+                if( cfg[o + 1] == CS_INTERFACE )
+                {
+                    uint8_t subtype = cfg[o + 2];
+                    if( ( subtype == VS_FORMAT_UNCOMPRESSED || subtype == VS_FORMAT_FRAME_BASED ) && len >= 9 )
+                        formats.insert( ( uint32_t( cfg[o + 5] ) << 24 ) | ( uint32_t( cfg[o + 6] ) << 16 )
+                                        | ( uint32_t( cfg[o + 7] ) << 8 ) | uint32_t( cfg[o + 8] ) );  // guidFormat Data1 = fourcc
+                    else if( subtype == VS_FORMAT_MJPEG )
+                        formats.insert( ( uint32_t( 'M' ) << 24 ) | ( uint32_t( 'J' ) << 16 ) | ( uint32_t( 'P' ) << 8 ) | uint32_t( 'G' ) );
+                }
+                o += len;
+            }
+            return formats;
+        }
+
         wmf_uvc_device::wmf_uvc_device(const uvc_device_info& info,
             std::shared_ptr<const wmf_backend> backend)
             : _streamIndex(MAX_PINS), _info(info), _is_flushed(), _has_started(), _backend(std::move(backend)),
@@ -783,11 +808,13 @@ namespace librealsense
             }
             try
             {
-                if (!get_usb_descriptors(info.vid, info.pid, info.unique_id, _location, _device_usb_spec, _device_serial))
+                std::vector<uint8_t> config_descriptor;
+                if (!get_usb_descriptors(info.vid, info.pid, info.unique_id, _location, _device_usb_spec, _device_serial, &config_descriptor))
                 {
                     LOG_WARNING("Could not retrieve USB descriptor for device " << std::hex << info.vid << ":"
                         << info.pid << " , id:" << info.unique_id << std::dec);
                 }
+                _native_formats = parse_native_fourccs( config_descriptor );
             }
             catch (...)
             {
@@ -938,6 +965,17 @@ namespace librealsense
                     int currFps = frameRateMax.numerator / frameRateMax.denominator;
 
                     uint32_t device_fourcc = reinterpret_cast<const big_endian<uint32_t> &>(subtype.Data1);
+
+                    // Drop media types MF reports but the device does not advertise in its USB configuration descriptor.
+                    // e.g. camera stack exposes an NV12 decoded from MJPEG. Streaming such a host-injected type via the
+                    // native path can fail, so expose only true device formats.
+                    if( ! _native_formats.empty() && _native_formats.find( device_fourcc ) == _native_formats.end() )
+                    {
+                        LOG_DEBUG( "Dropping non-native media type " << fourcc( device_fourcc ) << " " << width << "x"
+                                   << height << " @" << currFps << "Hz (not in USB configuration descriptor)" );
+                        safe_release( pMediaType );
+                        continue;
+                    }
 
                     // On D585S, we need to distinguish the occupancy and the label point cloud streams.
                     // The condition currently support 3 resolutions for LPC

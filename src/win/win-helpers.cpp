@@ -276,7 +276,43 @@ namespace librealsense
             return std::wstring(L"");
         }
 
-        std::tuple<std::string,usb_spec> handle_usb_hub(const std::wstring & targetKey, const std::wstring & path)
+        // Fetch the raw USB configuration descriptor (all interfaces) of the device connected at `port` on hub `h`.
+        // Goes through the hub driver, so it works without owning the device's function driver. Returns empty on failure.
+        static std::vector<uint8_t> get_config_descriptor_from_node(HANDLE h, ULONG port)
+        {
+            auto fetch = [h, port]( USHORT length, std::vector<uint8_t> & buf ) -> DWORD
+            {
+                buf.assign( sizeof( USB_DESCRIPTOR_REQUEST ) + length, 0 );
+                auto req = reinterpret_cast< USB_DESCRIPTOR_REQUEST * >( buf.data() );
+                req->ConnectionIndex = port;
+                req->SetupPacket.bmRequest = 0x80; // device-to-host, standard, device
+                req->SetupPacket.bRequest = USB_REQUEST_GET_DESCRIPTOR;
+                req->SetupPacket.wValue = ( USB_CONFIGURATION_DESCRIPTOR_TYPE << 8 ); // config index 0
+                req->SetupPacket.wIndex = 0;
+                req->SetupPacket.wLength = length;
+                DWORD returned = 0;
+                if( ! DeviceIoControl( h, IOCTL_USB_GET_DESCRIPTOR_FROM_NODE_CONNECTION,
+                                       buf.data(), (DWORD)buf.size(), buf.data(), (DWORD)buf.size(), &returned, nullptr ) )
+                    return 0;
+                return returned;
+            };
+
+            std::vector<uint8_t> buf;
+            // First read the 9-byte header to learn wTotalLength, then read the whole thing.
+            if( fetch( sizeof( USB_CONFIGURATION_DESCRIPTOR ), buf ) < sizeof( USB_DESCRIPTOR_REQUEST ) + sizeof( USB_CONFIGURATION_DESCRIPTOR ) )
+                return {};
+            auto cfg = reinterpret_cast< USB_CONFIGURATION_DESCRIPTOR * >( buf.data() + sizeof( USB_DESCRIPTOR_REQUEST ) );
+            USHORT total = cfg->wTotalLength;
+            if( total <= sizeof( USB_CONFIGURATION_DESCRIPTOR ) )
+                return {};
+            DWORD returned = fetch( total, buf );
+            if( returned < sizeof( USB_DESCRIPTOR_REQUEST ) + total )
+                return {};
+            return std::vector<uint8_t>( buf.begin() + sizeof( USB_DESCRIPTOR_REQUEST ),
+                                         buf.begin() + sizeof( USB_DESCRIPTOR_REQUEST ) + total );
+        }
+
+        std::tuple<std::string,usb_spec> handle_usb_hub(const std::wstring & targetKey, const std::wstring & path, std::vector<uint8_t>* out_config_descriptor = nullptr)
         {
             auto res = std::make_tuple(std::string(), usb_spec::usb_undefined);
 
@@ -314,11 +350,13 @@ namespace librealsense
 
                 // if connected, handle correctly, setting the location info if the device is found
                 if (pConInfo->DeviceIsHub)
-                    res = handle_usb_hub(targetKey, get_path(h, i));    // Invoke recursion to traverse USB hubs chain
+                    res = handle_usb_hub(targetKey, get_path(h, i), out_config_descriptor);    // Invoke recursion to traverse USB hubs chain
                 else
                 {
                     if (handle_node(targetKey, h, i)) // exit condition
                     {
+                        if( out_config_descriptor )
+                            *out_config_descriptor = get_config_descriptor_from_node( h, i );
                         return std::make_tuple(rsutils::string::windows::win_to_utf(fullPath.c_str()) + " " + std::to_string(i),
                                                 static_cast<usb_spec>(pConInfo->DeviceDescriptor.bcdUSB));
                     }
@@ -467,7 +505,7 @@ namespace librealsense
 
 
         // Provides Port Id and the USB Specification (USB type)
-        bool get_usb_descriptors(uint16_t device_vid, uint16_t device_pid, const std::string& device_uid, std::string& location, usb_spec& spec, std::string& serial)
+        bool get_usb_descriptors(uint16_t device_vid, uint16_t device_pid, const std::string& device_uid, std::string& location, usb_spec& spec, std::string& serial, std::vector<uint8_t>* out_config_descriptor)
         {
             SP_DEVINFO_DATA devInfo = { sizeof(SP_DEVINFO_DATA) };
             std::vector<GUID> guids = {
@@ -504,7 +542,7 @@ namespace librealsense
                     }
 
                     std::string parent_uid;
-                    if( get_usb_device_descriptors( devInfo.DevInst, device_vid, device_pid, device_uid, location, spec, serial, parent_uid ) )
+                    if( get_usb_device_descriptors( devInfo.DevInst, device_vid, device_pid, device_uid, location, spec, serial, parent_uid, out_config_descriptor ) )
                         return true;
                 }
             }
@@ -513,7 +551,7 @@ namespace librealsense
         }
 
         // Provides Port Id and the USB Specification (USB type)
-        bool get_usb_device_descriptors( DEVINST devinst, uint16_t device_vid, uint16_t device_pid, const std::string& device_uid, std::string& location, usb_spec& spec, std::string& serial, std::string& parent_uid )
+        bool get_usb_device_descriptors( DEVINST devinst, uint16_t device_vid, uint16_t device_pid, const std::string& device_uid, std::string& location, usb_spec& spec, std::string& serial, std::string& parent_uid, std::vector<uint8_t>* out_config_descriptor )
         {
             unsigned long buf_size = 0;
 
@@ -669,7 +707,7 @@ namespace librealsense
                     }
 
                     // return location if device is connected under this root hub, also provide the port USB spec/speed
-                    auto usb_res = handle_usb_hub(targetKey, std::wstring(pName->RootHubName));
+                    auto usb_res = handle_usb_hub(targetKey, std::wstring(pName->RootHubName), out_config_descriptor);
                     if( ! std::get<0>(usb_res).empty() )
                     {
                         location = std::get<0>(usb_res);
