@@ -32,8 +32,7 @@ STRESS_ITERATIONS_DDS          =  50
 STRESS_ITERATIONS_NIGHTLY      =  10
 STRESS_ITERATIONS_NIGHTLY_DDS  =   5
 REMOVAL_TIMEOUT        = 10   # [sec] max wait for any device event after reset
-HW_RESET_RETRIES       = 5    # attempts for a single reset - a fast reconnect can leave the control channel not-yet-ready
-HW_RESET_RETRY_BACKOFF = 0.3  # [sec] base backoff between retries (escalates: 0.3, 0.6, 0.9, ...)
+RESET_SETTLE           = 1    # [sec] let the device settle before each reset - a fast reconnect can leave the control channel not-yet-ready
 
 dev             = None   # current live handle - used for hardware_reset() and serial-number matching
 device_removed  = False
@@ -55,24 +54,6 @@ def device_changed( info ):
             continue
 
 
-def hardware_reset_with_retry( device, i, iterations ):
-    # A fast "OS race" reconnect can re-enumerate the device before its control channel is ready;
-    # hardware_reset() (an XU control transfer) then fails with
-    # "xioctl(UVCIOC_CTRL_QUERY) ... Protocol error". The device is still up, so retry with an
-    # escalating backoff until the channel accepts the command.
-    for attempt in range( 1, HW_RESET_RETRIES + 1 ):
-        try:
-            device.hardware_reset()
-            return
-        except RuntimeError as e:
-            if attempt == HW_RESET_RETRIES:
-                raise
-            backoff = HW_RESET_RETRY_BACKOFF * attempt
-            log.warning( f"[{i}/{iterations}] hardware_reset attempt {attempt} failed ({e}); "
-                         f"retrying in {backoff:.1f} [sec]" )
-            time.sleep( backoff )
-
-
 def test_hw_reset_stress( test_device, test_context_var ):
     global dev, target_sn, device_removed, device_added
 
@@ -92,8 +73,6 @@ def test_hw_reset_stress( test_device, test_context_var ):
     log.info( f"Running {iterations} HW-reset iterations on {conn_type} device "
               f"({'weekly' if is_weekly else 'nightly'} context, max reconnect time: {max_enum} [sec])" )
 
-    time.sleep( 1 )  # let the device settle before the first reset
-
     failed_removal   = []
     failed_reconnect = []
     skipped_removal  = 0
@@ -102,9 +81,10 @@ def test_hw_reset_stress( test_device, test_context_var ):
         device_removed   = False
         device_added     = False
 
+        time.sleep( RESET_SETTLE )  # let the (re)connected device settle before resetting
         log.debug( f"[{i}/{iterations}] Sending HW-reset" )
         sw = Stopwatch()
-        hardware_reset_with_retry( dev, i, iterations )
+        dev.hardware_reset()
 
         # --- wait for removal OR addition (whichever comes first) ---
         # Use the sum of both timeouts: in the OS-race case (no removal event), the addition
