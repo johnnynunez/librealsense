@@ -1,8 +1,6 @@
 # License: Apache 2.0. See LICENSE file in root directory.
 # Copyright(c) 2020 RealSense, Inc. All Rights Reserved.
 
-# Currently, we exclude D401 as it's failing
-
 import platform
 import pytest
 import pyrealsense2 as rs
@@ -12,7 +10,6 @@ log = logging.getLogger(__name__)
 
 pytestmark = [
     pytest.mark.device("D400*"),
-    pytest.mark.device_exclude("D401"),
     pytest.mark.context("nightly"),
 ]
 
@@ -146,14 +143,19 @@ def test_color_options_frame_drops(test_device_wrapped):
     product_line = dev.get_info(rs.camera_info.product_line)
     product_name = dev.get_info(rs.camera_info.name)
 
+    # D405 and D401 have no separate color sensor; their color options are registered on the depth sensor.
     try:
         color_sensor = dev.first_color_sensor()
     except RuntimeError:
-        if 'D421' in product_name or 'D405' in product_name:
+        if 'D405' in product_name or 'D401' in product_name:
+            color_sensor = dev.first_depth_sensor()
+        elif 'D421' in product_name:
             pytest.skip("No color sensor")
-        raise
+        else:
+            raise
 
-    color_profile = next(p for p in color_sensor.profiles if p.is_default())
+    color_profile = next(p for p in color_sensor.profiles
+                         if p.is_default() and p.stream_type() == rs.stream.color)
     checker = FrameDropChecker(product_line, is_depth=False)
 
     color_sensor.open(color_profile)
