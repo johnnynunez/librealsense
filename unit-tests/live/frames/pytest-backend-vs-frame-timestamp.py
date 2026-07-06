@@ -17,7 +17,7 @@ pytestmark = [
     pytest.mark.device("D400*"),
     pytest.mark.device_each("D500*"),
     pytest.mark.device_type_exclude("DDS"), # DDS devices no longer support Global Timestamp option. See Jira RSDEV-6299
-    pytest.mark.device_exclude("D585"),
+    pytest.mark.device_exclude("D585"), # Exclude D585 temporarily until test is fixed.
 ]
 
 FPS = 30

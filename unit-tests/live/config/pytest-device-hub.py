@@ -53,8 +53,11 @@ def test_detect_disconnect_after_hardware_reset(test_device):
                 raise
             # Device already reconnected from a previous reset but udev hasn't applied
             # permissions yet; settle and treat this as a successful disconnect observation
+            log.warning(f"Attempt {attempt}: hardware_reset() raised Permission denied — treating as disconnect observation")
             if sys.platform.startswith('linux'):
-                subprocess.run(['udevadm', 'settle'], timeout=10)
+                result = subprocess.run(['udevadm', 'settle'], timeout=10, check=False)
+                if result.returncode != 0:
+                    log.warning(f"udevadm settle exited {result.returncode}; udev permissions may not be applied")
             caught_once = True
             break
 
