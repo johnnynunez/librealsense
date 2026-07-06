@@ -48,23 +48,19 @@ int main(int argc, char * argv[]) try
 
     //Pipeline could choose a device that does not have a color stream
     //If there is no color stream, choose to align depth to another stream
-    auto has_non_depth_video = [](const std::vector<rs2::stream_profile>& streams) {
-        for (auto& sp : streams)
+    auto ensure_non_depth_video = [&]() {
+        for (auto& sp : profile.get_streams())
             if (sp.stream_type() != RS2_STREAM_DEPTH && sp.is<rs2::video_stream_profile>())
-                return true;
-        return false;
-    };
-
-    if (!has_non_depth_video(profile.get_streams()))
-    {
-        // Default profile has no non-depth video stream — retry with IR explicitly enabled
+                return;
+        // No non-depth video stream — retry with IR explicitly enabled
         pipe.stop();
         rs2::config cfg;
         cfg.enable_stream(RS2_STREAM_DEPTH);
         cfg.enable_stream(RS2_STREAM_INFRARED, 1);
         profile = pipe.start(cfg);
-    }
+    };
 
+    ensure_non_depth_video();
     rs2_stream align_to = find_stream_to_align(profile.get_streams());
 
     // Create a rs2::align object.
@@ -87,6 +83,7 @@ int main(int argc, char * argv[]) try
         {
             //If the profile was changed, update the align object, and also get the new device's depth scale
             profile = pipe.get_active_profile();
+            ensure_non_depth_video();
             align_to = find_stream_to_align(profile.get_streams());
             align = rs2::align(align_to);
             depth_scale = get_depth_scale(profile.get_device());
