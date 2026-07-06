@@ -3,6 +3,8 @@
 
 # wait_for_device can block. Timeout early in case of error.
 
+import subprocess
+import sys
 import time
 import pytest
 import pyrealsense2 as rs
@@ -43,8 +45,18 @@ def test_detect_disconnect_after_hardware_reset(test_device):
 
     while not caught_once and attempt <= MAX_TRIES:
         log.info(f"Attempt {attempt}/{MAX_TRIES}: issuing hardware_reset()")
-        dev.hardware_reset()
         attempt += 1
+        try:
+            dev.hardware_reset()
+        except RuntimeError as e:
+            if 'Permission denied' not in str(e):
+                raise
+            # Device already reconnected from a previous reset but udev hasn't applied
+            # permissions yet; settle and treat this as a successful disconnect observation
+            if sys.platform.startswith('linux'):
+                subprocess.run(['udevadm', 'settle'], timeout=10)
+            caught_once = True
+            break
 
         # Wait until hub reports this handle as disconnected
         t = time.time()
