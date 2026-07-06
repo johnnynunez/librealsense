@@ -705,7 +705,7 @@ namespace librealsense
             return;
         }
         // fall through to scalar path for non-16-aligned widths
-#endif
+#endif // __SSSE3__
         auto src = reinterpret_cast<const uint8_t*>(s);
         auto dst = reinterpret_cast<uint8_t*>(d[0]);
 
@@ -913,7 +913,7 @@ namespace librealsense
             return;
         }
         // fall through to scalar path for non-16-aligned widths
-#endif
+#endif // __SSSE3__
         auto src = reinterpret_cast<const uint8_t*>(s);
         auto dst = reinterpret_cast<uint8_t*>(d[0]);
 
