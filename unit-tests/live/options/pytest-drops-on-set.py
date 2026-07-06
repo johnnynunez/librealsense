@@ -97,6 +97,8 @@ def test_laser_power_frame_drops(test_device_wrapped):
     dev, ctx = test_device_wrapped
     product_line = dev.get_info(rs.camera_info.product_line)
     depth_sensor = dev.first_depth_sensor()
+    if not depth_sensor.supports(rs.option.laser_power):
+        pytest.skip("Device does not support laser power")
     depth_profile = next(p for p in depth_sensor.profiles if p.is_default())
     checker = FrameDropChecker(product_line, is_depth=True)
 
