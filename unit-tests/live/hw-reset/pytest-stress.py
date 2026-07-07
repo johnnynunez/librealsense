@@ -32,51 +32,49 @@ STRESS_ITERATIONS_DDS          =  50
 STRESS_ITERATIONS_NIGHTLY      =  10
 STRESS_ITERATIONS_NIGHTLY_DDS  =   5
 REMOVAL_TIMEOUT        = 10   # [sec] max wait for any device event after reset
-POLL_INTERVAL          = 0.2  # [sec] between consecutive ctx.query_devices() stability polls
+POLL_INTERVAL          = 0.2  # [sec] between ctx.query_devices() polls while waiting for a quiet bus
+QUIET_WINDOW           = 1.5  # [sec] required lull with no add/remove events before the next reset
 
 dev             = None   # current live handle - used for hardware_reset() and serial-number matching
 device_removed  = False
 device_added    = False
 target_sn       = None   # serial number of the device under test - set once, never changes
+last_event_ts   = 0.0    # perf_counter() of the most recent add/remove callback event for target_sn
 
 
 def device_changed( info ):
-    global device_removed, device_added
+    global device_removed, device_added, last_event_ts
     current_dev = dev  # snapshot: dev is reassigned on the test thread between iterations
     if current_dev and info.was_removed( current_dev ):
         device_removed = True
+        last_event_ts  = time.perf_counter()
     for candidate in info.get_new_devices():
         try:
             if candidate.get_info( rs.camera_info.serial_number ) == target_sn:
-                device_added = True
+                device_added  = True
+                last_event_ts = time.perf_counter()
         except RuntimeError:
             continue
 
 
-def wait_for_live_device( ctx, sn, timeout ):
-    # Re-acquire a freshly-enumerated handle for 'sn' from the context. After a fast "OS race"
-    # reconnect the device node can still be churning, so a handle latched from a change-event may
-    # already be dead (hardware_reset() then fails with "Cannot open /dev/videoN"). Require the
-    # device present on two consecutive polls so we don't grab one that is about to disappear.
+def wait_until_quiet( ctx, sn, quiet, timeout ):
+    # Reset only once the bus has settled: require 'sn' currently enumerated AND no add/remove
+    # callback event for 'quiet' seconds. On a flaky bench the device can re-enumerate repeatedly
+    # (double "device added", missed removals); resetting a handle mid-churn fails with
+    # "Protocol error" / "Cannot send after transport endpoint shutdown" / "Cannot open /dev/videoN".
+    # The event lull is measured from the callback (which sees every transition), not from polling.
     t = Timer( timeout )
     t.start()
-    stable  = 0
-    current = None
     while not t.has_expired():
-        found = None
-        for d in ctx.query_devices():
-            try:
-                if d.get_info( rs.camera_info.serial_number ) == sn:
-                    found = d
-                    break
-            except RuntimeError:
-                continue
-        current = found
-        stable  = stable + 1 if found else 0
-        if stable >= 2:
-            return current
+        if time.perf_counter() - last_event_ts >= quiet:
+            for d in ctx.query_devices():
+                try:
+                    if d.get_info( rs.camera_info.serial_number ) == sn:
+                        return d
+                except RuntimeError:
+                    continue
         time.sleep( POLL_INTERVAL )
-    return current if stable >= 2 else None
+    return None
 
 
 def test_hw_reset_stress( test_device, test_context_var ):
@@ -103,16 +101,18 @@ def test_hw_reset_stress( test_device, test_context_var ):
     skipped_removal  = 0
 
     for i in range( 1, iterations + 1 ):
-        device_removed   = False
-        device_added     = False
-
-        # Always reset a freshly-queried, stably-enumerated handle - never one left over from a
-        # previous cycle's change-event, which may already be dead after an OS-race reconnect.
-        dev = wait_for_live_device( ctx, target_sn, REMOVAL_TIMEOUT )
+        # Wait for a settled bus, then acquire a fresh handle - never reset one left over from a
+        # previous cycle's change-event, which may be dead or mid-re-enumeration on a flaky bench.
+        dev = wait_until_quiet( ctx, target_sn, QUIET_WINDOW, REMOVAL_TIMEOUT )
         if dev is None:
-            log.error( f"[{i}/{iterations}] device {target_sn} not enumerated before reset" )
+            log.error( f"[{i}/{iterations}] device {target_sn} never settled ({QUIET_WINDOW}s quiet) before reset" )
             failed_reconnect.append( i )
             break
+
+        # Clear the event flags only now (after settling) so removal/reconnect timing reflects
+        # this reset alone, not churn observed while waiting for the bus to go quiet.
+        device_removed = False
+        device_added   = False
 
         log.debug( f"[{i}/{iterations}] Sending HW-reset" )
         sw = Stopwatch()
