@@ -32,6 +32,7 @@ STRESS_ITERATIONS_DDS          =  50
 STRESS_ITERATIONS_NIGHTLY      =  10
 STRESS_ITERATIONS_NIGHTLY_DDS  =   5
 REMOVAL_TIMEOUT        = 10   # [sec] max wait for any device event after reset
+POLL_INTERVAL          = 0.2  # [sec] between consecutive ctx.query_devices() stability polls
 
 dev             = None   # current live handle - used for hardware_reset() and serial-number matching
 device_removed  = False
@@ -41,7 +42,8 @@ target_sn       = None   # serial number of the device under test - set once, ne
 
 def device_changed( info ):
     global device_removed, device_added
-    if dev and info.was_removed( dev ):
+    current_dev = dev  # snapshot: dev is reassigned on the test thread between iterations
+    if current_dev and info.was_removed( current_dev ):
         device_removed = True
     for candidate in info.get_new_devices():
         try:
@@ -73,8 +75,8 @@ def wait_for_live_device( ctx, sn, timeout ):
         stable  = stable + 1 if found else 0
         if stable >= 2:
             return current
-        time.sleep( 0.2 )
-    return current
+        time.sleep( POLL_INTERVAL )
+    return current if stable >= 2 else None
 
 
 def test_hw_reset_stress( test_device, test_context_var ):
