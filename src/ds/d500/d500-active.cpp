@@ -29,5 +29,13 @@ namespace librealsense
             _device_capabilities, _hw_monitor, _fw_version);
 
         _ds_active_common->register_options();
+
+        // Emitter Always On (Laser Always On) - projector control common to all D500 active SKUs.
+        // D555 uses the legacy LASERONCONST opcode; newer 5x5 / D585 SKUs use the APM_STROBE opcodes.
+        bool is_legacy_emitter_opcode = ( get_pid() == D555_PID );
+        auto emitter_get_opcode = is_legacy_emitter_opcode ? LASERONCONST : APM_STROBE_GET;
+        auto emitter_set_opcode = is_legacy_emitter_opcode ? LASERONCONST : APM_STROBE_SET;
+        auto emitter_always_on_opt = std::make_shared<emitter_always_on_option>( _hw_monitor, emitter_get_opcode, emitter_set_opcode );
+        get_depth_sensor().register_option( RS2_OPTION_EMITTER_ALWAYS_ON, emitter_always_on_opt );
     }
 }
