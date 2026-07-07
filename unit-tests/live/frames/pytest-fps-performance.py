@@ -123,7 +123,10 @@ def _evenly_spaced_subset(items, max_count):
     if max_count is None or len(items) <= max_count:
         return items
     if max_count == 1:
-        return [items[-1]]  # highest resolution / FPS - the most demanding single case
+        # A middle item - reliable smoke config for the gating tier. Avoids both extremes: the
+        # highest-bandwidth mode (flaky FPS on constrained benches) and the lowest-FPS mode
+        # (too few frames for a stable measurement).
+        return [items[len(items) // 2]]
 
     # Evenly spaced across the full range, endpoints included. Distinct indices for len > max_count
     # (the >1 step keeps consecutive picks apart), so exactly max_count items are returned.
@@ -1384,10 +1387,11 @@ def get_depth_color_combinations(device, max_combinations=None):
                 if len(selected) < max_combinations:
                     selected.append(diff_fps_diff_res[i])
 
-        # Small caps can zero out every proportional bucket above; fall back to the first
-        # max_combinations so a low tier (e.g. gating=1) still exercises at least one combo.
+        # Small caps can zero out every proportional bucket above; fall back to an evenly-spaced
+        # pick (same strategy as _evenly_spaced_subset) so a low tier (e.g. gating=1) still
+        # exercises a representative combo, consistent with the config/FPS tests.
         if not selected:
-            selected = combinations[:max_combinations]
+            selected = list(_evenly_spaced_subset(combinations, max_combinations))
 
         combinations = selected
 
