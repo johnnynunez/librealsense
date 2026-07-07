@@ -314,6 +314,22 @@ namespace librealsense
 
             return tags;
         };
+
+        // D585S runs embedded decimation filter transparently in FW, so depth and IR
+        // can be auto-completed at different resolutions from the same sensor — only fps
+        // has to agree. Other D500 devices keep the base rule (matching w/h/fps).
+        bool contradicts( const stream_profile_interface * a, const std::vector< stream_profile > & others ) const override
+        {
+            if( dynamic_cast< const video_stream_profile_interface * >( a ) )
+            {
+                for( auto request : others )
+                {
+                    if( a->get_framerate() != 0 && request.fps != 0 && ( a->get_framerate() != request.fps ) )
+                        return true;
+                }
+            }
+            return false;
+        }
     };
     
 

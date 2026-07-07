@@ -1087,6 +1087,10 @@ namespace rs2
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 10);
         bool res = false;
 
+        // The split depth/IR resolution UI only makes sense when the embedded decimation
+        // filter is ON; re-evaluate here so toggling the filter switches modes live.
+        refresh_multiple_resolutions_state();
+
         std::string label = rsutils::string::from()
             << "Stream Selection Columns##" << dev.get_info(RS2_CAMERA_INFO_NAME)
             << s->get_info(RS2_CAMERA_INFO_NAME);
@@ -1571,7 +1575,83 @@ namespace rs2
         std::string product_line = dev.get_info( RS2_CAMERA_INFO_PRODUCT_LINE );
         std::string sensor_name = s->get_info( RS2_CAMERA_INFO_NAME );
 
-        return product_line == "D500" && sensor_name == "Stereo Module";
+        if( product_line != "D500" || sensor_name != "Stereo Module" )
+            return false;
+
+        // D585S runs the embedded decimation filter permanently in FW and doesn't expose
+        // it as a UI option, so depth is always at a lower resolution than IR — the split
+        // UI must always be shown.
+        if( dev.supports( RS2_CAMERA_INFO_NAME )
+            && std::string( dev.get_info( RS2_CAMERA_INFO_NAME ) ).find( "D585S" ) != std::string::npos )
+            return true;
+
+        // Other D500 devices: depth and IR share a single sensor, so their resolution is
+        // only decoupled when the embedded decimation filter is ON — depth is decimated
+        // on-camera while IR is not. Otherwise both streams stream at the same resolution
+        // and the split UI is redundant.
+        return is_embedded_decimation_enabled();
+    }
+
+    bool subdevice_model::is_embedded_decimation_enabled() const
+    {
+        for( auto & ef : embedded_filters )
+        {
+            auto filter = ef->get_filter();
+            if( ! filter || filter->get_type() != RS2_EMBEDDED_FILTER_TYPE_DECIMATION )
+                continue;
+            if( ! filter->supports( RS2_OPTION_EMBEDDED_FILTER_ENABLED ) )
+                return false;
+            return filter->get_option( RS2_OPTION_EMBEDDED_FILTER_ENABLED ) != 0.f;
+        }
+        return false;
+    }
+
+    void subdevice_model::refresh_multiple_resolutions_state()
+    {
+        const bool desired = is_multiple_resolutions_supported();
+        if( desired == ui.is_multiple_resolutions ) return;
+        // Don't toggle the mode mid-stream — the streaming pipeline was configured with
+        // the current selection layout. It will re-sync on the next stop/start.
+        if( streaming ) return;
+
+        if( desired )
+        {
+            // Switching ON: seed the per-stream map from the current single-resolution
+            // selection, keeping it where the stream supports that resolution.
+            std::pair< int, int > current_res{ 0, 0 };
+            if( ui.selected_res_id >= 0 && ui.selected_res_id < static_cast< int >( res_values.size() ) )
+                current_res = res_values[ui.selected_res_id];
+
+            for( auto & res_array : resolutions_per_stream )
+            {
+                auto & options = res_array.second;
+                if( options.empty() )
+                    continue;
+                auto it = std::find( options.begin(), options.end(), current_res );
+                ui.selected_stream_to_res[res_array.first] = ( it != options.end() ) ? *it : options.back();
+            }
+        }
+        else
+        {
+            // Switching OFF: map depth's per-stream resolution back into res_values, so the
+            // single-resolution combo lands on the same choice the user was seeing.
+            std::pair< int, int > target{ 0, 0 };
+            auto it = ui.selected_stream_to_res.find( RS2_STREAM_DEPTH );
+            if( it != ui.selected_stream_to_res.end() )
+                target = it->second;
+
+            int idx = -1;
+            for( int i = 0; i < static_cast< int >( res_values.size() ); ++i )
+            {
+                if( res_values[i] == target ) { idx = i; break; }
+            }
+            if( idx < 0 && ! res_values.empty() )
+                idx = static_cast< int >( res_values.size() ) - 1;
+            ui.selected_res_id = idx;
+        }
+
+        ui.is_multiple_resolutions = desired;
+        last_valid_ui = ui;
     }
 
     std::pair<int, int> subdevice_model::get_max_resolution(rs2_stream stream) const
