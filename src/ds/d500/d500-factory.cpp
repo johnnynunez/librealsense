@@ -254,6 +254,8 @@ namespace librealsense
     };
     
 
+    // Local to this translation unit; method bodies kept inline to match sibling classes
+    // in this file (rs555_device, rs585_legacy_device, etc.).
     class rs585s_device
         : public d500_active
         , public d500_color
