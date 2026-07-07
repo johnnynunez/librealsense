@@ -114,8 +114,10 @@ def _evenly_spaced_subset(items, max_count):
     """
     Return a representative subset of a pre-sorted list with at most max_count entries.
 
-    Always keeps the first and last item (the extremes) and spreads the remaining slots
-    evenly across the middle. Order is preserved. max_count None means "return everything".
+    For max_count == 1 returns the middle item (a reliable smoke config for the gating tier -
+    avoids both the highest-bandwidth and lowest-FPS extremes). For max_count >= 2 keeps the
+    first and last item (the extremes) and spreads the remaining slots evenly across the middle.
+    Order is preserved. max_count None means "return everything".
 
     Works for both (width, height, fps) config tuples and plain FPS-rate ints - the caller
     passes lists already sorted by the ordering that matters for that type.
