@@ -51,8 +51,7 @@ MIN_TEST_DURATION_PERCENT = 0.6  # Minimum test duration percentage (60%)
 #   semi   (--context nightly) : capped representative subset, kept well under ~10 min
 #   full   (--context weekly)  : all supported permutations
 # Rationale: back-to-back UVC open/start/stop/close storms can wedge the host USB controller on
-# CI machines (and take the whole agent offline where the NIC shares that controller). Sibling
-# fix for the depth-AE test: RSDSO-21717 / PR #15348.
+# CI machines (and take the whole agent offline where the NIC shares that controller).
 TIER_GATING = "gating"
 TIER_SEMI = "semi"
 TIER_FULL = "full"
@@ -65,8 +64,8 @@ TIER_FPS_CAP = {TIER_GATING: 1, TIER_SEMI: 6, TIER_FULL: None}
 TIER_MULTISTREAM_CAP = {TIER_GATING: 1, TIER_SEMI: 6, TIER_FULL: 50}
 
 # Let USB endpoints tear down between stream reconfigurations. Back-to-back stop/close -> open
-# storms can wedge the host USB controller on CI machines. Mirrors PR #15348.
-SETTLE_DELAY = float(0.5)  # seconds
+# storms can wedge the host USB controller on CI machines.
+SETTLE_DELAY = 0.5  # seconds
 
 
 def resolve_coverage_tier(config):
@@ -125,18 +124,12 @@ def _evenly_spaced_subset(items, max_count):
         return items
     if max_count == 1:
         return [items[-1]]  # highest resolution / FPS - the most demanding single case
-    if max_count == 2:
-        return [items[0], items[-1]]
 
-    selected = {0, len(items) - 1}
-    middle = list(range(1, len(items) - 1))
-    step = max(1, len(middle) // (max_count - 2))
-    for i in range(0, len(middle), step):
-        if len(selected) >= max_count:
-            break
-        selected.add(middle[i])
-
-    return [items[i] for i in sorted(selected)]
+    # Evenly spaced across the full range, endpoints included. Distinct indices for len > max_count
+    # (the >1 step keeps consecutive picks apart), so exactly max_count items are returned.
+    n = len(items)
+    idx = sorted({round(i * (n - 1) / (max_count - 1)) for i in range(max_count)})
+    return [items[i] for i in idx]
 
 
 class FPSMonitor:
@@ -455,15 +448,16 @@ def check_stream_fps_accuracy_generic(device, stream_name, stream_type, formats,
 
     finally:
         # Guard teardown so a failed open()/start() surfaces its real error instead of being
-        # masked by a "UVC device is not streaming" raised from stop(). Settle before next open().
+        # masked by a "UVC device is not streaming" raised from stop(). Log (don't mask) the
+        # teardown error so CI post-mortem has a trace. Settle before next open().
         try:
             sensor.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"{stream_name} sensor.stop() failed during teardown: {e}")
         try:
             sensor.close()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"{stream_name} sensor.close() failed during teardown: {e}")
         _settle()
 
     # Calculate statistics
@@ -672,6 +666,8 @@ def check_stream_fps_accuracy_comprehensive(device, stream_type_name, test_funct
         stream_type_name: Name of stream type for logging (e.g., "depth", "color", "IR")
         test_function: Function to test FPS for this stream type
         get_fps_function: Function to get supported FPS rates for this stream type
+        max_fps_rates: Coverage cap — limits FPS rates tested to an evenly-spaced subset of this
+            size. None (default) means test all supported rates.
 
     Returns:
         Tuple[bool, List[Dict]]: (all_tests_passed, results_list)
@@ -865,6 +861,8 @@ def check_stream_configurations_comprehensive(device, stream_type_name, test_fun
         stream_type_name: Name of stream type for logging (e.g., "depth", "color", "IR")
         test_function: Function to test individual configuration (e.g., check_depth_fps_accuracy)
         get_configurations_function: Function to get supported configurations
+        max_configs: Coverage cap — limits configurations tested to an evenly-spaced subset of this
+            size. None (default) means test all supported configurations.
         test_duration: How long to test each configuration
         fps_tolerance: Allowed FPS deviation
 
@@ -1228,18 +1226,19 @@ def check_multistream_fps_accuracy(device, depth_config, color_config, test_dura
 
     finally:
         # Stop and close sensors. Split stop/close so a failing stop() can't skip close() and
-        # leak an open sensor. Settle so USB endpoints tear down before the next open().
-        for s in (depth_sensor, color_sensor):
+        # leak an open sensor. One settle after both are closed (both reopen together on the next
+        # combo), so USB endpoints tear down before the next open().
+        for name, s in (("depth", depth_sensor), ("color", color_sensor)):
             if s is None:
                 continue
             try:
                 s.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"{name} sensor.stop() failed during teardown: {e}")
             try:
                 s.close()
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"{name} sensor.close() failed during teardown: {e}")
         _settle()
 
     # Calculate statistics
@@ -1392,7 +1391,7 @@ def get_depth_color_combinations(device, max_combinations=None):
 
         combinations = selected
 
-        log.info(f"Coverage selected: {len(same_fps_same_res)} same FPS+res, {len(same_fps_diff_res)} same FPS+diff res, "
+        log.info(f"Coverage buckets (available): {len(same_fps_same_res)} same FPS+res, {len(same_fps_diff_res)} same FPS+diff res, "
               f"{len(diff_fps_same_res)} diff FPS+same res, {len(diff_fps_diff_res)} diff FPS+res")
         log.info(f"Final selection: {len(combinations)} combinations")
 
