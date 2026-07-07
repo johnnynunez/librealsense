@@ -454,9 +454,26 @@ def pytest_runtest_makereport(item, call):
         log.debug(f"Test execution took {report.duration:.3f}s")
 
 
+def _reset_pytest_timeout_for_retry(item):
+    """Re-arm pytest-timeout so each pytest-retry attempt gets a fresh --timeout budget
+    (the outer protocol yield otherwise makes retries share the first attempt's budget).
+    Also fires on first call: setup no longer counts against the call budget."""
+    try:
+        from pytest_timeout import _get_item_settings
+    except (ImportError, AttributeError):
+        return
+    settings = _get_item_settings(item)
+    if not (settings.timeout and settings.timeout > 0 and not settings.func_only):
+        return
+    hooks = item.config.pluginmanager.hook
+    hooks.pytest_timeout_cancel_timer(item=item)
+    hooks.pytest_timeout_set_timer(item=item, settings=settings)
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item):
-    """Surface pytest-check soft-check failures in the call phase.
+    """Reset pytest-timeout between retry attempts + surface pytest-check
+    soft-check failures in the call phase.
 
     pytest-check defers its failures to pytest_runtest_makereport. But pytest-retry
     reruns a test by invoking pytest_runtest_call directly and building the report
@@ -478,6 +495,8 @@ def pytest_runtest_call(item):
     We swap that KeyError back for the recorded setup exception so the failure is
     diagnosable and pytest-retry sees the true (retryable) error.
     """
+    _reset_pytest_timeout_for_retry(item)
+
     outcome = yield
 
     # Match only the fixture-missing KeyError pytest injects, not a test-body KeyError.
