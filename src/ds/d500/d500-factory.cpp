@@ -123,6 +123,9 @@ namespace librealsense
             , extended_firmware_logger_device( dev_info, d500_device::_hw_monitor, get_firmware_logs_command() )
         {
             ds_advanced_mode_base::initialize_advanced_mode( this );
+
+            auto emitter_always_on_opt = std::make_shared< emitter_always_on_option >( d500_device::_hw_monitor, ds::APM_STROBE_GET, ds::APM_STROBE_SET );
+            get_depth_sensor().register_option( RS2_OPTION_EMITTER_ALWAYS_ON, emitter_always_on_opt );
         }
 
         std::shared_ptr<matcher> create_matcher(const frame_holder& frame) const override
@@ -173,6 +176,9 @@ namespace librealsense
             , extended_firmware_logger_device( dev_info, d500_device::_hw_monitor, get_firmware_logs_command() )
         {
             ds_advanced_mode_base::initialize_advanced_mode( this );
+
+            auto emitter_always_on_opt = std::make_shared< emitter_always_on_option >( d500_device::_hw_monitor, ds::APM_STROBE_GET, ds::APM_STROBE_SET );
+            get_depth_sensor().register_option( RS2_OPTION_EMITTER_ALWAYS_ON, emitter_always_on_opt );
 
             // Improved Close Range Depth - USB toggle
             register_feature( std::make_shared< close_range_filter_feature >(
@@ -226,6 +232,9 @@ namespace librealsense
             , extended_firmware_logger_device( dev_info, d500_device::_hw_monitor, get_firmware_logs_command() )
         {
             ds_advanced_mode_base::initialize_advanced_mode( this );
+
+            auto emitter_always_on_opt = std::make_shared< emitter_always_on_option >( d500_device::_hw_monitor, ds::APM_STROBE_GET, ds::APM_STROBE_SET );
+            get_depth_sensor().register_option( RS2_OPTION_EMITTER_ALWAYS_ON, emitter_always_on_opt );
         }
 
         std::shared_ptr<matcher> create_matcher(const frame_holder& frame) const override
