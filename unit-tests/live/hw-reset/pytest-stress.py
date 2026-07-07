@@ -32,7 +32,6 @@ STRESS_ITERATIONS_DDS          =  50
 STRESS_ITERATIONS_NIGHTLY      =  10
 STRESS_ITERATIONS_NIGHTLY_DDS  =   5
 REMOVAL_TIMEOUT        = 10   # [sec] max wait for any device event after reset
-RESET_SETTLE           = 1    # [sec] let the device settle before each reset - a fast reconnect can leave the control channel not-yet-ready
 
 dev             = None   # current live handle - used for hardware_reset() and serial-number matching
 device_removed  = False
@@ -41,17 +40,41 @@ target_sn       = None   # serial number of the device under test - set once, ne
 
 
 def device_changed( info ):
-    global dev, device_removed, device_added
+    global device_removed, device_added
     if dev and info.was_removed( dev ):
         device_removed = True
     for candidate in info.get_new_devices():
         try:
             if candidate.get_info( rs.camera_info.serial_number ) == target_sn:
-                # We replace the device handle after each reset, to be sure we're always referring to the current live instance.
-                dev          = candidate
                 device_added = True
         except RuntimeError:
             continue
+
+
+def wait_for_live_device( ctx, sn, timeout ):
+    # Re-acquire a freshly-enumerated handle for 'sn' from the context. After a fast "OS race"
+    # reconnect the device node can still be churning, so a handle latched from a change-event may
+    # already be dead (hardware_reset() then fails with "Cannot open /dev/videoN"). Require the
+    # device present on two consecutive polls so we don't grab one that is about to disappear.
+    t = Timer( timeout )
+    t.start()
+    stable  = 0
+    current = None
+    while not t.has_expired():
+        found = None
+        for d in ctx.query_devices():
+            try:
+                if d.get_info( rs.camera_info.serial_number ) == sn:
+                    found = d
+                    break
+            except RuntimeError:
+                continue
+        current = found
+        stable  = stable + 1 if found else 0
+        if stable >= 2:
+            return current
+        time.sleep( 0.2 )
+    return current
 
 
 def test_hw_reset_stress( test_device, test_context_var ):
@@ -81,7 +104,14 @@ def test_hw_reset_stress( test_device, test_context_var ):
         device_removed   = False
         device_added     = False
 
-        time.sleep( RESET_SETTLE )  # let the (re)connected device settle before resetting
+        # Always reset a freshly-queried, stably-enumerated handle - never one left over from a
+        # previous cycle's change-event, which may already be dead after an OS-race reconnect.
+        dev = wait_for_live_device( ctx, target_sn, REMOVAL_TIMEOUT )
+        if dev is None:
+            log.error( f"[{i}/{iterations}] device {target_sn} not enumerated before reset" )
+            failed_reconnect.append( i )
+            break
+
         log.debug( f"[{i}/{iterations}] Sending HW-reset" )
         sw = Stopwatch()
         dev.hardware_reset()
