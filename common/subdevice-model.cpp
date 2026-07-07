@@ -321,6 +321,10 @@ namespace rs2
                 // a member of this subdevice_model — so it cannot outlive its owner.
                 model->available_predicate = [this]()
                 {
+                    // Only a live color stream conflicts with close range; while stopped
+                    // the toggle stays available even if color is selected for the next run.
+                    if( !streaming )
+                        return true;
                     for( auto& p : profiles )
                     {
                         auto it = stream_enabled.find( p.unique_id() );
