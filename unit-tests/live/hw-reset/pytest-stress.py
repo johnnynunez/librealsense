@@ -66,10 +66,13 @@ def wait_until_quiet( ctx, sn, quiet, timeout ):
     t = Timer( timeout )
     t.start()
     while not t.has_expired():
-        if time.perf_counter() - last_event_ts >= quiet:
+        quiet_since = last_event_ts  # snapshot: detect a churn during the query below
+        if time.perf_counter() - quiet_since >= quiet:
             for d in ctx.query_devices():
                 try:
                     if d.get_info( rs.camera_info.serial_number ) == sn:
+                        if last_event_ts != quiet_since:
+                            break  # a callback fired while querying - bus churned, re-wait for quiet
                         return d
                 except RuntimeError:
                     continue
