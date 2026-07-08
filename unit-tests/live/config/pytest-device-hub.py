@@ -14,7 +14,7 @@ pytestmark = [
     pytest.mark.context("nightly"),
     pytest.mark.device_each("D400*"),
     pytest.mark.device_each("D500*"),
-    pytest.mark.device_exclude("D585"), # Exclude D585 temporarily until test is fixed (RuntimeError: map_device_descriptor Cannot open '/dev/video0 Last Error: Permission denied).
+    pytest.mark.device_exclude("D585 Prototype"),  # Permission denied on /dev/video0 after reset; D585S unaffected
     pytest.mark.timeout(60),
 ]
 
