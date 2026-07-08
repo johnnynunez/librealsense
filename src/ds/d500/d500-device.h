@@ -120,7 +120,6 @@ namespace librealsense
         void update_flash(const std::vector<uint8_t>& image, rs2_update_progress_callback_sptr callback, int update_mode) override;
         bool check_fw_compatibility( const std::vector<uint8_t>& image ) const override { return true; };
         std::string get_opcode_string(int opcode) const override;
-        bool contradicts( const stream_profile_interface * a, const std::vector< stream_profile > & others ) const override;
 
     protected:
         std::shared_ptr<ds_device_common> _ds_device_common;

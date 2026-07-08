@@ -254,6 +254,8 @@ namespace librealsense
     };
     
 
+    // Local to this translation unit; method bodies kept inline to match sibling classes
+    // in this file (rs555_device, rs585_legacy_device, etc.).
     class rs585s_device
         : public d500_active
         , public d500_color
@@ -314,6 +316,21 @@ namespace librealsense
 
             return tags;
         };
+
+        // FW-side decimation lets pipeline auto-complete depth and IR at different
+        // resolutions from the same sensor; only fps must agree.
+        bool contradicts( const stream_profile_interface * a, const std::vector< stream_profile > & others ) const override
+        {
+            if( dynamic_cast< const video_stream_profile_interface * >( a ) )
+            {
+                for( auto request : others )
+                {
+                    if( a->get_framerate() != 0 && request.fps != 0 && ( a->get_framerate() != request.fps ) )
+                        return true;
+                }
+            }
+            return false;
+        }
     };
     
 
