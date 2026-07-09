@@ -345,10 +345,15 @@ namespace rs2
         {
             int w = config_file::instance().get(configurations::window::width);
             int h = config_file::instance().get(configurations::window::height);
-            glfwSetWindowSize(_win, w, h);
-            
-            if (config_file::instance().get(configurations::window::maximized))
-                glfwMaximizeWindow(_win);
+            // Guard against a corrupt/legacy config with zero dimensions: XConfigureWindow
+            // rejects 0 width/height with BadValue, aborting the viewer under Xvfb (no WM).
+            if (w > 0 && h > 0)
+            {
+                glfwSetWindowSize(_win, w, h);
+
+                if (config_file::instance().get(configurations::window::maximized))
+                    glfwMaximizeWindow(_win);
+            }
         }
 
         glfwMakeContextCurrent(_win);
