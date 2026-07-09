@@ -1,10 +1,12 @@
 # License: Apache 2.0. See LICENSE file in root directory.
 # Copyright(c) 2023 RealSense, Inc. All Rights Reserved.
 
-# AE mode is supported on D455 with FW version 5.15.0.0 and above https://github.com/realsenseai/librealsense/blob/development/src/ds/d400/d400-device.cpp#L835
+# RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE registration:
+#   D455:                       FW >= 5.15.0.0
+#   All other D400s except D415: FW >= 5.17.3.20 (RSDSO-21571 widening)
+# See src/ds/d400/d400-device.cpp (search "DEPTH AUTO EXPOSURE MODE").
 
 import pytest
-import platform
 import pyrealsense2 as rs
 import pyrsutils as rsutils
 from rspy.pytest.device_helpers import require_min_fw_version
@@ -12,18 +14,24 @@ import logging
 log = logging.getLogger(__name__)
 
 pytestmark = [
-    pytest.mark.device("D455"),
-    pytest.mark.skipif(platform.machine() == "aarch64", reason="D455 not available on CI Jetson"),
+    pytest.mark.device_each("D400*"),
 ]
 
 REGULAR = 0.0
 ACCELERATED = 1.0
 
+D455_MIN_FW    = rsutils.version(5, 15, 0, 0)
+OTHERS_MIN_FW  = rsutils.version(5, 17, 3, 20)
+
 
 @pytest.fixture
 def depth_sensor(test_device_wrapped):
     dev, _ = test_device_wrapped
-    require_min_fw_version(dev, rsutils.version(5, 15, 0, 0), "DEPTH_AUTO_EXPOSURE_MODE")
+    name = dev.get_info(rs.camera_info.name)
+    if "D415" in name:
+        pytest.skip(f"AE mode is not supported on D415 family ({name})")
+    min_fw = D455_MIN_FW if "D455" in name else OTHERS_MIN_FW
+    require_min_fw_version(dev, min_fw, "DEPTH_AUTO_EXPOSURE_MODE")
     return dev.first_depth_sensor()
 
 
