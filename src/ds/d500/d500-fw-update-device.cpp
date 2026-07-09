@@ -23,18 +23,6 @@ ds_d500_update_device::ds_d500_update_device( std::shared_ptr< const device_info
         return true;
     }
 
-    std::string ds_d500_update_device::parse_serial_number(const std::vector<uint8_t>& buffer) const
-    {
-        if (buffer.size() != sizeof(serial_number_data))
-            throw std::runtime_error("DFU - failed to parse serial number!");
-
-        std::stringstream rv;
-        for (auto i = 0; i < ds::module_serial_size; i++)
-            rv << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(buffer[i]);
-
-        return rv.str();
-    }
-
     void ds_d500_update_device::update(const void* fw_image, int fw_image_size, rs2_update_progress_callback_sptr update_progress_callback) const
     {
         update_device::update( fw_image, fw_image_size, update_progress_callback );
@@ -137,11 +125,5 @@ ds_d500_update_device::ds_d500_update_device( std::shared_ptr< const device_info
         }
         else
             std::this_thread::sleep_for(std::chrono::seconds(required_dfu_time));
-    }
-    float ds_d500_update_device::compute_progress(float progress, float start, float end, float threshold) const
-    {
-        if( threshold > 1.f )
-            progress = ceil( progress * threshold ) / threshold;
-        return start + progress * ( end - start );
     }
 }

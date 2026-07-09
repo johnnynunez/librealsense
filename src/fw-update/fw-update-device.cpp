@@ -11,6 +11,7 @@
 #include <rsutils/time/stopwatch.h>
 
 #include <chrono>
+#include <iomanip>
 #include <stdexcept>
 #include <algorithm>
 #include <thread>
@@ -93,6 +94,18 @@ namespace librealsense
                   << "\n\tDFU version is: " << payload.dfu_version
                   << "\n\tPrevious version: " << _last_fw_version
                   << "\n\tHighest ever installed: " << _highest_fw_version );
+    }
+
+    std::string update_device::parse_serial_number(const std::vector<uint8_t>& buffer) const
+    {
+        if (buffer.size() != sizeof(serial_number_data))
+            throw std::runtime_error("DFU - failed to parse serial number!");
+
+        std::stringstream rv;
+        for (size_t i = 0; i < sizeof(serial_number_data::serial); i++)
+            rv << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(buffer[i]);
+
+        return rv.str();
     }
 
     std::ostream & operator<<( std::ostream & os, rs2_dfu_state state )
