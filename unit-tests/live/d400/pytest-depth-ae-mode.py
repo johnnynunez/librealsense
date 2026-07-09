@@ -64,7 +64,9 @@ def test_set_during_streaming_mode_not_allowed(depth_sensor):
     depth_sensor.set_option(rs.option.auto_exposure_mode, REGULAR)
     assert depth_sensor.get_option(rs.option.auto_exposure_mode) == REGULAR
     # Start streaming
-    depth_profile = next(p for p in depth_sensor.profiles if p.stream_type() == rs.stream.depth)
+    depth_profile = next((p for p in depth_sensor.profiles if p.stream_type() == rs.stream.depth), None)
+    if depth_profile is None:
+        pytest.skip("Sensor does not expose a depth-stream profile")
     depth_sensor.open(depth_profile)
     depth_sensor.start(lambda x: None)
     try:
@@ -74,3 +76,20 @@ def test_set_during_streaming_mode_not_allowed(depth_sensor):
     finally:
         depth_sensor.stop()
         depth_sensor.close()
+
+
+def test_option_absent_on_d415(test_device_wrapped):
+    """Positive verification of the D415 exclusion: option must NOT be registered.
+
+    Runs alongside the D400* parametrization but only asserts on D415 devices;
+    other SKUs skip. This is the counterpart to the fixture-level D415 skip in
+    the tests above — those confirm the option works where it's supposed to,
+    this one confirms it's absent where it isn't.
+    """
+    dev, _ = test_device_wrapped
+    name = dev.get_info(rs.camera_info.name)
+    if "D415" not in name:
+        pytest.skip(f"Negative case runs on D415 only (device is {name})")
+    depth_sensor = dev.first_depth_sensor()
+    assert rs.option.auto_exposure_mode not in depth_sensor.get_supported_options(), \
+        f"RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE unexpectedly registered on {name}"
