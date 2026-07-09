@@ -286,9 +286,6 @@ namespace librealsense
             versions[1] = get_info( RS2_CAMERA_INFO_SMCU_FW_VERSION );
             set_expected_source_versions( std::move( versions ) );
 
-            auto emitter_always_on_opt = std::make_shared<emitter_always_on_option>( d500_device::_hw_monitor, ds::APM_STROBE_GET, ds::APM_STROBE_SET );
-            get_depth_sensor().register_option( RS2_OPTION_EMITTER_ALWAYS_ON, emitter_always_on_opt );
-
             // Note - requirement to gate depth options was removed to allow validation checks. Gated by FW only.
             // This should be last as we wish to protect the depth options setting when not in service safety mode
             // d500_safety::gate_depth_options();
@@ -361,10 +358,6 @@ namespace librealsense
             auto & depth_sensor = get_depth_sensor();
             group_multiple_fw_calls(depth_sensor, [&]()
             {
-                auto emitter_always_on_opt = std::make_shared<emitter_always_on_option>( d500_device::_hw_monitor,
-                                                                                         ds::LASERONCONST, ds::LASERONCONST);
-                depth_sensor.register_option( RS2_OPTION_EMITTER_ALWAYS_ON, emitter_always_on_opt );
-
                 auto thermal_compensation_toggle = std::make_shared< d500_thermal_compensation_option >( d500_device::_hw_monitor );
 
                 // Monitoring SOC PVT (not OHM) because it correlates to D400 ASIC temperature and we keep the model the same.
