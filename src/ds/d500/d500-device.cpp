@@ -124,19 +124,6 @@ namespace librealsense
         return _hw_monitor_response->hwmon_error2str(opcode);
     }
 
-    bool d500_device::contradicts( const stream_profile_interface * a, const std::vector< stream_profile > & others ) const
-    {
-        if( auto vid_a = dynamic_cast< const video_stream_profile_interface * >( a ) )
-        {
-            for( auto request : others )
-            {
-                if( a->get_framerate() != 0 && request.fps != 0 && ( a->get_framerate() != request.fps ) )
-                    return true;
-            }
-        }
-        return false;
-    }
-
     d500_depth_sensor::d500_depth_sensor( d500_device * owner,std::shared_ptr<uvc_sensor> uvc_sensor)
         : synthetic_sensor(ds::DEPTH_STEREO, uvc_sensor, owner, d500_depth_fourcc_to_rs2_format, d500_depth_fourcc_to_rs2_stream)
         , _owner(owner)

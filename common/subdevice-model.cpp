@@ -534,6 +534,7 @@ namespace rs2
 
             if (ui.is_multiple_resolutions)
             {
+                apply_decimation_resolution_defaults();
                 for (auto it = ui.selected_stream_to_res.begin(); it != ui.selected_stream_to_res.end(); ++it)
                 {
                     if (!is_selected_combination_supported())
@@ -1087,6 +1088,10 @@ namespace rs2
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 10);
         bool res = false;
 
+        // The split depth/IR resolution UI only makes sense when the embedded decimation
+        // filter is ON; re-evaluate here so toggling the filter switches modes live.
+        refresh_multiple_resolutions_state();
+
         std::string label = rsutils::string::from()
             << "Stream Selection Columns##" << dev.get_info(RS2_CAMERA_INFO_NAME)
             << s->get_info(RS2_CAMERA_INFO_NAME);
@@ -1565,13 +1570,100 @@ namespace rs2
 
     bool subdevice_model::is_multiple_resolutions_supported() const
     {
-        if( !dev.supports( RS2_CAMERA_INFO_PRODUCT_LINE ) || !s->supports( RS2_CAMERA_INFO_NAME ) )
+        if( ! dev.supports( RS2_CAMERA_INFO_PRODUCT_LINE ) || ! s->supports( RS2_CAMERA_INFO_NAME ) )
             return false;
+        if( std::string( dev.get_info( RS2_CAMERA_INFO_PRODUCT_LINE ) ) != "D500" ) return false;
+        if( std::string( s->get_info( RS2_CAMERA_INFO_NAME ) ) != "Stereo Module" ) return false;
 
-        std::string product_line = dev.get_info( RS2_CAMERA_INFO_PRODUCT_LINE );
-        std::string sensor_name = s->get_info( RS2_CAMERA_INFO_NAME );
+        // D585S: FW-side decimation always on, option not exposed.
+        if( dev.supports( RS2_CAMERA_INFO_PRODUCT_ID )
+            && std::string( dev.get_info( RS2_CAMERA_INFO_PRODUCT_ID ) ) == "0B6B" )
+            return true;
 
-        return product_line == "D500" && sensor_name == "Stereo Module";
+        // Other D500: show split UI only when the user-toggleable decimation is enabled.
+        // Read the cached is_enabled() (kept fresh via on_options_changed) so this stays
+        // cheap on the per-frame draw path.
+        for( auto & ef : embedded_filters )
+        {
+            auto filter = ef->get_filter();
+            if( ! filter || filter->get_type() != RS2_EMBEDDED_FILTER_TYPE_DECIMATION )
+                continue;
+            // Filter present without the ENABLED option => permanently on in FW.
+            if( ! filter->supports( RS2_OPTION_EMBEDDED_FILTER_ENABLED ) )
+                return true;
+            return ef->is_enabled();
+        }
+        return false;
+    }
+
+    void subdevice_model::refresh_multiple_resolutions_state()
+    {
+        const bool desired = is_multiple_resolutions_supported();
+        if( desired == ui.is_multiple_resolutions ) return;
+        // Don't toggle the mode mid-stream — the streaming pipeline was configured with
+        // the current selection layout. It will re-sync on the next stop/start.
+        if( streaming ) return;
+
+        if( desired )
+        {
+            // Switching ON: seed the per-stream map from the current single-resolution
+            // selection, then force the FW-mandated decimation defaults (depth 640x360,
+            // IR 1280x720) so the combo boxes land on values the pipeline will accept.
+            std::pair< int, int > current_res{ 0, 0 };
+            if( ui.selected_res_id >= 0 && ui.selected_res_id < static_cast< int >( res_values.size() ) )
+                current_res = res_values[ui.selected_res_id];
+
+            for( auto & res_array : resolutions_per_stream )
+            {
+                auto & options = res_array.second;
+                if( options.empty() )
+                    continue;
+                auto it = std::find( options.begin(), options.end(), current_res );
+                ui.selected_stream_to_res[res_array.first] = ( it != options.end() ) ? *it : options.back();
+            }
+            apply_decimation_resolution_defaults();
+        }
+        else
+        {
+            // Switching OFF: map depth's per-stream resolution back into res_values, so the
+            // single-resolution combo lands on the same choice the user was seeing.
+            std::pair< int, int > target{ 0, 0 };
+            auto it = ui.selected_stream_to_res.find( RS2_STREAM_DEPTH );
+            if( it != ui.selected_stream_to_res.end() )
+                target = it->second;
+
+            int idx = -1;
+            for( int i = 0; i < static_cast< int >( res_values.size() ); ++i )
+            {
+                if( res_values[i] == target ) { idx = i; break; }
+            }
+            if( idx < 0 && ! res_values.empty() )
+                idx = static_cast< int >( res_values.size() ) - 1;
+            ui.selected_res_id = idx;
+        }
+
+        ui.is_multiple_resolutions = desired;
+        last_valid_ui = ui;
+    }
+
+    void subdevice_model::apply_decimation_resolution_defaults()
+    {
+        // Viewer-only convenience for the split-resolution UI: the embedded decimation
+        // filter (FW-side) only accepts depth at 640x360 and pairs it with IR at 1280x720.
+        // Landing the combo boxes on these values here avoids the streaming-time error
+        // in avoid_streaming_on_embedded_filters_not_matching_configuration().
+        static const std::pair< int, int > DEPTH_RES{ 640, 360 };
+        static const std::pair< int, int > IR_RES{ 1280, 720 };
+
+        auto force = [&]( rs2_stream stream, const std::pair< int, int > & res ) {
+            auto it = resolutions_per_stream.find( stream );
+            if( it == resolutions_per_stream.end() ) return;
+            auto & options = it->second;
+            if( std::find( options.begin(), options.end(), res ) == options.end() ) return;
+            ui.selected_stream_to_res[stream] = res;
+        };
+        force( RS2_STREAM_DEPTH, DEPTH_RES );
+        force( RS2_STREAM_INFRARED, IR_RES );
     }
 
     std::pair<int, int> subdevice_model::get_max_resolution(rs2_stream stream) const

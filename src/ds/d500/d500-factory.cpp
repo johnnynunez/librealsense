@@ -254,6 +254,8 @@ namespace librealsense
     };
     
 
+    // Local to this translation unit; method bodies kept inline to match sibling classes
+    // in this file (rs555_device, rs585_legacy_device, etc.).
     class rs585s_device
         : public d500_active
         , public d500_color
@@ -284,9 +286,6 @@ namespace librealsense
             versions[1] = get_info( RS2_CAMERA_INFO_SMCU_FW_VERSION );
             set_expected_source_versions( std::move( versions ) );
 
-            auto emitter_always_on_opt = std::make_shared<emitter_always_on_option>( d500_device::_hw_monitor, ds::APM_STROBE_GET, ds::APM_STROBE_SET );
-            get_depth_sensor().register_option( RS2_OPTION_EMITTER_ALWAYS_ON, emitter_always_on_opt );
-
             // Note - requirement to gate depth options was removed to allow validation checks. Gated by FW only.
             // This should be last as we wish to protect the depth options setting when not in service safety mode
             // d500_safety::gate_depth_options();
@@ -314,6 +313,21 @@ namespace librealsense
 
             return tags;
         };
+
+        // FW-side decimation lets pipeline auto-complete depth and IR at different
+        // resolutions from the same sensor; only fps must agree.
+        bool contradicts( const stream_profile_interface * a, const std::vector< stream_profile > & others ) const override
+        {
+            if( dynamic_cast< const video_stream_profile_interface * >( a ) )
+            {
+                for( auto request : others )
+                {
+                    if( a->get_framerate() != 0 && request.fps != 0 && ( a->get_framerate() != request.fps ) )
+                        return true;
+                }
+            }
+            return false;
+        }
     };
     
 
@@ -344,10 +358,6 @@ namespace librealsense
             auto & depth_sensor = get_depth_sensor();
             group_multiple_fw_calls(depth_sensor, [&]()
             {
-                auto emitter_always_on_opt = std::make_shared<emitter_always_on_option>( d500_device::_hw_monitor,
-                                                                                         ds::LASERONCONST, ds::LASERONCONST);
-                depth_sensor.register_option( RS2_OPTION_EMITTER_ALWAYS_ON, emitter_always_on_opt );
-
                 auto thermal_compensation_toggle = std::make_shared< d500_thermal_compensation_option >( d500_device::_hw_monitor );
 
                 // Monitoring SOC PVT (not OHM) because it correlates to D400 ASIC temperature and we keep the model the same.
