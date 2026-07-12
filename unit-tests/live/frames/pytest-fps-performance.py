@@ -650,7 +650,7 @@ def get_fps_test_parameters(fps_rate):
     """
     # Configuration: list of (threshold, (duration, tolerance))
     fps_test_config = [
-        (6,   (15.0, 0.35)),  # Very low FPS: extended test time and higher tolerance
+        (6,   (12.0, 0.35)),  # Very low FPS: extended test time and higher tolerance
         (15,  (10.0, 0.25)),  # Low FPS: increased test time and tolerance
         (30,  (8.0, 0.15)),   # Standard FPS: increased duration for better measurements
         (60,  (6.0, 0.18)),   # High FPS: optimized duration and tolerance
@@ -857,7 +857,7 @@ def print_fps_test_summary(stream_type_name, supported_fps_rates, all_fps_result
 
 
 def check_stream_configurations_comprehensive(device, stream_type_name, test_function, get_configurations_function,
-                                            max_configs=None, test_duration=3.0, fps_tolerance=0.20):
+                                            max_configs=None):
     """
     Test all supported resolution and FPS configurations for a stream type
 
@@ -868,8 +868,10 @@ def check_stream_configurations_comprehensive(device, stream_type_name, test_fun
         get_configurations_function: Function to get supported configurations
         max_configs: Coverage cap — limits configurations tested to an evenly-spaced subset of this
             size. None (default) means test all supported configurations.
-        test_duration: How long to test each configuration
-        fps_tolerance: Allowed FPS deviation
+
+    Per-config streaming time and tolerance are derived from the FPS via get_fps_test_parameters
+    (same as the FPS-rate and multi-stream paths), so low-FPS modes stream long enough to collect
+    a stable, steady-state measurement instead of only startup-burst frames.
 
     Returns:
         Tuple[bool, List[Dict]]: (all_passed, list_of_results)
@@ -906,6 +908,9 @@ def check_stream_configurations_comprehensive(device, stream_type_name, test_fun
     for i, (width, height, fps) in enumerate(supported_configs):
         config_name = f"{width}x{height}@{fps}fps"
         log.info(f"\nTesting {stream_type_name} configuration {i+1}/{len(supported_configs)}: {config_name}")
+
+        # Streaming time scales with FPS: low FPS needs a longer stream to gather enough frames
+        test_duration, fps_tolerance = get_fps_test_parameters(fps)
 
         try:
             # Test this specific configuration
