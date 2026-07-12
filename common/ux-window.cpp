@@ -348,12 +348,13 @@ namespace rs2
             // Guard against a corrupt/legacy config with zero dimensions: XConfigureWindow
             // rejects 0 width/height with BadValue, aborting the viewer under Xvfb (no WM).
             if (w > 0 && h > 0)
-            {
                 glfwSetWindowSize(_win, w, h);
+            else
+                rs2::log(RS2_LOG_SEVERITY_WARN,
+                    "Ignoring persisted window size (width/height <= 0); falling back to monitor default");
 
-                if (config_file::instance().get(configurations::window::maximized))
-                    glfwMaximizeWindow(_win);
-            }
+            if (config_file::instance().get(configurations::window::maximized))
+                glfwMaximizeWindow(_win);
         }
 
         glfwMakeContextCurrent(_win);
