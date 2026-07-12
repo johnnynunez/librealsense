@@ -18,7 +18,6 @@ void render_slider(rect location, float& clipping_dist);
 void remove_background(rs2::video_frame& other, const rs2::depth_frame& depth_frame, float depth_scale, float clipping_dist);
 float get_depth_scale(rs2::device dev);
 rs2_stream find_stream_to_align(const std::vector<rs2::stream_profile>& streams);
-bool profile_changed(const std::vector<rs2::stream_profile>& current, const std::vector<rs2::stream_profile>& prev);
 bool streams_alignable(const std::vector<rs2::stream_profile>& streams);
 void configure_alignable_streams(const rs2::device& dev, rs2::config& cfg);
 
@@ -70,27 +69,6 @@ int main(int argc, char * argv[]) try
     {
         // Using the align object, we block the application until a frameset is available
         rs2::frameset frameset = pipe.wait_for_frames();
-
-        // rs2::pipeline::wait_for_frames() can replace the device it uses in case of device error or disconnection.
-        // Since rs2::align is aligning depth to some other stream, we need to make sure that the stream was not changed
-        //  after the call to wait_for_frames();
-        if (profile_changed(pipe.get_active_profile().get_streams(), profile.get_streams()))
-        {
-            //If the profile was changed, update the align object, and also get the new device's depth scale
-            profile = pipe.get_active_profile();
-            if (!streams_alignable(profile.get_streams()))
-            {
-                //The device reconnected with a depth-only (or otherwise incomplete) profile — retry with
-                //depth and a non-depth video stream explicitly enabled
-                pipe.stop();
-                rs2::config reconnect_cfg;
-                configure_alignable_streams(profile.get_device(), reconnect_cfg);
-                profile = pipe.start(reconnect_cfg);
-            }
-            align_to = find_stream_to_align(profile.get_streams());
-            align = rs2::align(align_to);
-            depth_scale = get_depth_scale(profile.get_device());
-        }
 
         //Get processed aligned frame
         auto processed = align.process(frameset);
@@ -317,16 +295,3 @@ void configure_alignable_streams(const rs2::device& dev, rs2::config& cfg)
         throw std::runtime_error("Device has no non-depth video stream to align with Depth");
 }
 
-bool profile_changed(const std::vector<rs2::stream_profile>& current, const std::vector<rs2::stream_profile>& prev)
-{
-    for (auto&& sp : prev)
-    {
-        //If previous profile is in current (maybe just added another)
-        auto itr = std::find_if(std::begin(current), std::end(current), [&sp](const rs2::stream_profile& current_sp) { return sp.unique_id() == current_sp.unique_id(); });
-        if (itr == std::end(current)) //If it previous stream wasn't found in current
-        {
-            return true;
-        }
-    }
-    return false;
-}
