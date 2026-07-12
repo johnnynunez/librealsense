@@ -1,9 +1,9 @@
 # License: Apache 2.0. See LICENSE file in root directory.
 # Copyright(c) 2023 RealSense, Inc. All Rights Reserved.
 
-# RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE is registered on non-rolling-shutter D400
-# devices only. Rolling-shutter SKUs are excluded via CAP_ROLLING_SHUTTER (GVD
-# byte 166). Minimum FW: 5.15.0.0 on D455, 5.17.3.20 on the other SKUs.
+# RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE is registered on global-shutter D400
+# devices only. The SDK gates on CAP_GLOBAL_SHUTTER (GVD byte 166 == 0x02).
+# Minimum FW: 5.15.0.0 on D455, 5.17.3.20 on the other SKUs.
 # See src/ds/d400/d400-device.cpp (search "DEPTH AUTO EXPOSURE MODE").
 
 import pytest
@@ -28,9 +28,10 @@ OTHERS_MIN_FW  = rsutils.version(5, 17, 3, 20)
 GVD_OPCODE = 0x10
 GVD_DEPTH_SENSOR_TYPE_OFFSET = 166
 GVD_RESPONSE_HEADER_LEN = 4  # opcode echo prefix on send_and_receive_raw_data
+GVD_GLOBAL_SHUTTER = 0x02
 
 
-def _is_rolling_shutter(dev):
+def _is_global_shutter(dev):
     hwm = dev.as_debug_protocol()
     if hwm is None:
         return False
@@ -38,7 +39,7 @@ def _is_rolling_shutter(dev):
     idx = GVD_RESPONSE_HEADER_LEN + GVD_DEPTH_SENSOR_TYPE_OFFSET
     if len(raw) <= idx:
         return False
-    return raw[idx] == 0x01
+    return raw[idx] == GVD_GLOBAL_SHUTTER
 
 
 @pytest.fixture
@@ -99,18 +100,18 @@ def test_set_during_streaming_mode_not_allowed(depth_sensor):
         depth_sensor.close()
 
 
-def test_option_absent_on_rolling_shutter_sku(test_device_wrapped):
-    """Positive verification of the rolling-shutter exclusion.
+def test_option_absent_on_non_global_shutter_sku(test_device_wrapped):
+    """Positive verification of the global-shutter gate.
 
-    The SDK gates registration on `!CAP_ROLLING_SHUTTER` (see d400-device.cpp
+    The SDK gates registration on `CAP_GLOBAL_SHUTTER` (see d400-device.cpp
     around the DEPTH AUTO EXPOSURE MODE registration). This test queries the
-    same GVD byte the SDK does and, on a device the FW reports as rolling
+    same GVD byte the SDK does and, on a device that does NOT report global
     shutter, asserts the option is genuinely absent.
     """
     dev, _ = test_device_wrapped
     name = dev.get_info(rs.camera_info.name)
-    if not _is_rolling_shutter(dev):
-        pytest.skip(f"Negative case runs on rolling-shutter devices only (device is {name})")
+    if _is_global_shutter(dev):
+        pytest.skip(f"Negative case runs on non-global-shutter devices only (device is {name})")
     depth_sensor = dev.first_depth_sensor()
     assert rs.option.auto_exposure_mode not in depth_sensor.get_supported_options(), \
         f"RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE unexpectedly registered on {name}"

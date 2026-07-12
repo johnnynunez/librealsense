@@ -852,12 +852,12 @@ namespace librealsense
                 gain_option = uvc_pu_gain_option;
             }
 
-            // DEPTH AUTO EXPOSURE MODE - available on non-rolling-shutter D400 SKUs.
+            // DEPTH AUTO EXPOSURE MODE - available on global-shutter D400 SKUs.
             // D455: since FW 5.15.0.0; other SKUs: FW 5.17.3.20.
-            const bool is_rolling_shutter = ( _device_capabilities & ds_caps::CAP_ROLLING_SHUTTER ) == ds_caps::CAP_ROLLING_SHUTTER;
+            const bool is_global_shutter = ( _device_capabilities & ds_caps::CAP_GLOBAL_SHUTTER ) == ds_caps::CAP_GLOBAL_SHUTTER;
             const firmware_version min_fw_for_ae_mode = (_pid == RS455_PID) ? firmware_version("5.15.0.0")
                                                                             : firmware_version("5.17.3.20");
-            if (!is_rolling_shutter && _fw_version >= min_fw_for_ae_mode)
+            if (is_global_shutter && _fw_version >= min_fw_for_ae_mode)
             {
                 auto depth_auto_exposure_mode = std::make_shared<uvc_xu_option<uint8_t>>( raw_depth_sensor,
                     depth_xu,
