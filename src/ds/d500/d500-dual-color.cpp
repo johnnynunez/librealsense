@@ -43,8 +43,8 @@ namespace librealsense
 
         raw_depth_sensor->set_stream_id_resolver( resolve_color_stream );
 
-        // Convert to the four RGB formats. NV12 is registered before M420 so the shared RGB targets resolve to
-        // NV12 when present and fall back to M420 when it is not (the converter breaks ties by registration order).
+        // NV12 registered before M420 so RGB targets resolve to NV12 when present, and to M420 when it is not
+        // (converter breaks ties by registration order).
         for( auto target : { RS2_FORMAT_RGB8, RS2_FORMAT_RGBA8, RS2_FORMAT_BGR8, RS2_FORMAT_BGRA8 } )
         {
             depth_sensor.register_processing_block( { { RS2_FORMAT_NV12, RS2_STREAM_COLOR } },

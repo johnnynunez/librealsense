@@ -142,8 +142,8 @@ namespace librealsense
             break;
         case RS2_FORMAT_M420:
         case RS2_FORMAT_NV12:
-            // Register NV12 conversions first so RGB resolve to NV12 when it is present, and to M420 when it is not
-            // (the converter breaks ties by registration order). YUY2 is exposed passthrough-only.
+            // NV12 registered before M420 so RGB targets resolve to NV12 when present, and to M420 when it is not
+            // (converter breaks ties by registration order). YUY2 is exposed passthrough-only.
             color_ep.register_processing_block( processing_block_factory::create_pbf_vector< nv12_converter >(
                 RS2_FORMAT_NV12,
                 map_supported_color_formats( RS2_FORMAT_NV12 ),
