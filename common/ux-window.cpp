@@ -345,8 +345,9 @@ namespace rs2
         {
             int w = config_file::instance().get(configurations::window::width);
             int h = config_file::instance().get(configurations::window::height);
-            // Guard against a corrupt/legacy config with zero dimensions: XConfigureWindow
-            // rejects 0 width/height with BadValue, aborting the viewer under Xvfb (no WM).
+            // Guard against a corrupt/legacy config with zero dimensions: XConfigureWindow rejects
+            // 0 width/height with BadValue. A normal desktop's window manager clamps such requests,
+            // but CI runs the viewer under Xvfb (headless X server, no WM) where Xlib aborts.
             if (w > 0 && h > 0)
                 glfwSetWindowSize(_win, w, h);
             else
