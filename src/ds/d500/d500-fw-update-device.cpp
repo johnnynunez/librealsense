@@ -7,6 +7,9 @@
 
 namespace librealsense
 {
+    // update_device::parse_serial_number iterates sizeof(serial_number_data::serial); keep it aligned with the ds constant.
+    static_assert( sizeof( serial_number_data::serial ) == ds::module_serial_size, "serial number field size mismatch" );
+
 ds_d500_update_device::ds_d500_update_device( std::shared_ptr< const device_info > const & dev_info,
                                     std::shared_ptr< platform::usb_device > const & usb_device )
     : update_device( dev_info, usb_device, "D500" )

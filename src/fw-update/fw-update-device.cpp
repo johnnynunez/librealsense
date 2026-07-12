@@ -160,7 +160,6 @@ namespace librealsense
 
     float update_device::compute_progress(float progress, float start, float end, float threshold) const
     {
-        // NOTE: this is usually overriden; see derived classes!
         if( threshold > 1.f )
             progress = ceil( progress * threshold ) / threshold;
         return start + progress * (end - start);
