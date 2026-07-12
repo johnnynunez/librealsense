@@ -852,8 +852,8 @@ namespace librealsense
                 gain_option = uvc_pu_gain_option;
             }
 
-            // DEPTH AUTO EXPOSURE MODE - available on non-rolling-shutter D400 SKUs (RSDSO-21571).
-            // D455: since FW 5.15.0.0; other SKUs: FW 5.17.3.20 (RSDSO-21358).
+            // DEPTH AUTO EXPOSURE MODE - available on non-rolling-shutter D400 SKUs.
+            // D455: since FW 5.15.0.0; other SKUs: FW 5.17.3.20.
             const bool is_rolling_shutter = ( _device_capabilities & ds_caps::CAP_ROLLING_SHUTTER ) == ds_caps::CAP_ROLLING_SHUTTER;
             const firmware_version min_fw_for_ae_mode = (_pid == RS455_PID) ? firmware_version("5.15.0.0")
                                                                             : firmware_version("5.17.3.20");

@@ -1,12 +1,9 @@
 # License: Apache 2.0. See LICENSE file in root directory.
 # Copyright(c) 2023 RealSense, Inc. All Rights Reserved.
 
-# RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE registration (RSDSO-21571):
-#   Non-rolling-shutter D400 devices only. Rolling-shutter SKUs are excluded via
-#   the CAP_ROLLING_SHUTTER capability derived from GVD byte 166 -- covers
-#   D400 / D410 / D415 / D405 without a per-PID list.
-#   D455:  FW >= 5.15.0.0
-#   Other: FW >= 5.17.3.20 (RSDSO-21358)
+# RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE is registered on non-rolling-shutter D400
+# devices only. Rolling-shutter SKUs are excluded via CAP_ROLLING_SHUTTER (GVD
+# byte 166). Minimum FW: 5.15.0.0 on D455, 5.17.3.20 on the other SKUs.
 # See src/ds/d400/d400-device.cpp (search "DEPTH AUTO EXPOSURE MODE").
 
 import pytest
