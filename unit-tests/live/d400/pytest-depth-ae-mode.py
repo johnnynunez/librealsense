@@ -23,9 +23,22 @@ ACCELERATED = 1.0
 D455_MIN_FW    = rsutils.version(5, 15, 0, 0)
 OTHERS_MIN_FW  = rsutils.version(5, 17, 3, 20)
 
-# Per src/ds/d400/d400-device.cpp:239 — rolling-shutter D400 family, used for the
-# positive-absence test below.
-ROLLING_SHUTTER_D400_NAMES = ("D400", "D410", "D415", "D405")
+# GVD query for depth_sensor_type (offset per src/ds/d400/d400-private.h
+# d400_gvd_offsets::depth_sensor_type). 0x01 = rolling shutter, 0x02 = global.
+GVD_OPCODE = 0x10
+GVD_DEPTH_SENSOR_TYPE_OFFSET = 166
+GVD_RESPONSE_HEADER_LEN = 4  # opcode echo prefix on send_and_receive_raw_data
+
+
+def _is_rolling_shutter(dev):
+    hwm = dev.as_debug_protocol()
+    if hwm is None:
+        return False
+    raw = hwm.send_and_receive_raw_data(hwm.build_command(opcode=GVD_OPCODE))
+    idx = GVD_RESPONSE_HEADER_LEN + GVD_DEPTH_SENSOR_TYPE_OFFSET
+    if len(raw) <= idx:
+        return False
+    return raw[idx] == 0x01
 
 
 @pytest.fixture
@@ -90,14 +103,14 @@ def test_option_absent_on_rolling_shutter_sku(test_device_wrapped):
     """Positive verification of the rolling-shutter exclusion.
 
     The SDK gates registration on `!CAP_ROLLING_SHUTTER` (see d400-device.cpp
-    around the DEPTH AUTO EXPOSURE MODE registration). This test asserts the
-    option is genuinely absent on any of the D400 RS-family devices — the
-    counterpart to the fixture-level skip above.
+    around the DEPTH AUTO EXPOSURE MODE registration). This test queries the
+    same GVD byte the SDK does and, on a device the FW reports as rolling
+    shutter, asserts the option is genuinely absent.
     """
     dev, _ = test_device_wrapped
     name = dev.get_info(rs.camera_info.name)
-    if not any(rs_name in name for rs_name in ROLLING_SHUTTER_D400_NAMES):
-        pytest.skip(f"Negative case runs on rolling-shutter D400 SKUs only (device is {name})")
+    if not _is_rolling_shutter(dev):
+        pytest.skip(f"Negative case runs on rolling-shutter devices only (device is {name})")
     depth_sensor = dev.first_depth_sensor()
     assert rs.option.auto_exposure_mode not in depth_sensor.get_supported_options(), \
         f"RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE unexpectedly registered on {name}"
