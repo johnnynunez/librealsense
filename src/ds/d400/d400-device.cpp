@@ -853,8 +853,6 @@ namespace librealsense
             }
 
             // DEPTH AUTO EXPOSURE MODE - available on non-rolling-shutter D400 SKUs (RSDSO-21571).
-            // Rolling-shutter devices are flagged via GVD byte 166 (see parse_device_capabilities);
-            // excluding them here covers D400 / D410 / D415 / D405 without a per-PID list.
             // D455: since FW 5.15.0.0; other SKUs: FW 5.17.3.20 (RSDSO-21358).
             const bool is_rolling_shutter = ( _device_capabilities & ds_caps::CAP_ROLLING_SHUTTER ) == ds_caps::CAP_ROLLING_SHUTTER;
             const firmware_version min_fw_for_ae_mode = (_pid == RS455_PID) ? firmware_version("5.15.0.0")
