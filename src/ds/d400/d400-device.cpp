@@ -852,12 +852,14 @@ namespace librealsense
                 gain_option = uvc_pu_gain_option;
             }
 
-            // DEPTH AUTO EXPOSURE MODE - available on all D400 SKUs except D415 family (RSDSO-21571)
-            // D455: since FW 5.15.0.0; other SKUs: FW 5.17.3.20 (RSDSO-21358)
-            const bool is_d415_family = val_in_range(_pid, { RS415_PID, RS415_GMSL_PID });
+            // DEPTH AUTO EXPOSURE MODE - available on non-rolling-shutter D400 SKUs (RSDSO-21571).
+            // Rolling-shutter devices are flagged via GVD byte 166 (see parse_device_capabilities);
+            // excluding them here covers D400 / D410 / D415 / D405 without a per-PID list.
+            // D455: since FW 5.15.0.0; other SKUs: FW 5.17.3.20 (RSDSO-21358).
+            const bool is_rolling_shutter = ( _device_capabilities & ds_caps::CAP_ROLLING_SHUTTER ) == ds_caps::CAP_ROLLING_SHUTTER;
             const firmware_version min_fw_for_ae_mode = (_pid == RS455_PID) ? firmware_version("5.15.0.0")
                                                                             : firmware_version("5.17.3.20");
-            if (!is_d415_family && _fw_version >= min_fw_for_ae_mode)
+            if (!is_rolling_shutter && _fw_version >= min_fw_for_ae_mode)
             {
                 auto depth_auto_exposure_mode = std::make_shared<uvc_xu_option<uint8_t>>( raw_depth_sensor,
                     depth_xu,

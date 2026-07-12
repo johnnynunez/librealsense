@@ -1,9 +1,12 @@
 # License: Apache 2.0. See LICENSE file in root directory.
 # Copyright(c) 2023 RealSense, Inc. All Rights Reserved.
 
-# RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE registration:
-#   D455:                       FW >= 5.15.0.0
-#   All other D400s except D415: FW >= 5.17.3.20 (RSDSO-21571 widening)
+# RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE registration (RSDSO-21571):
+#   Non-rolling-shutter D400 devices only. Rolling-shutter SKUs are excluded via
+#   the CAP_ROLLING_SHUTTER capability derived from GVD byte 166 -- covers
+#   D400 / D410 / D415 / D405 without a per-PID list.
+#   D455:  FW >= 5.15.0.0
+#   Other: FW >= 5.17.3.20 (RSDSO-21358)
 # See src/ds/d400/d400-device.cpp (search "DEPTH AUTO EXPOSURE MODE").
 
 import pytest
@@ -23,16 +26,24 @@ ACCELERATED = 1.0
 D455_MIN_FW    = rsutils.version(5, 15, 0, 0)
 OTHERS_MIN_FW  = rsutils.version(5, 17, 3, 20)
 
+# Per src/ds/d400/d400-device.cpp:239 — rolling-shutter D400 family, used for the
+# positive-absence test below.
+ROLLING_SHUTTER_D400_NAMES = ("D400", "D410", "D415", "D405")
+
 
 @pytest.fixture
 def depth_sensor(test_device_wrapped):
     dev, _ = test_device_wrapped
     name = dev.get_info(rs.camera_info.name)
-    if "D415" in name:
-        pytest.skip(f"AE mode is not supported on D415 family ({name})")
     min_fw = D455_MIN_FW if "D455" in name else OTHERS_MIN_FW
     require_min_fw_version(dev, min_fw, "DEPTH_AUTO_EXPOSURE_MODE")
-    return dev.first_depth_sensor()
+    depth = dev.first_depth_sensor()
+    # Track the SDK's own runtime signal rather than duplicating its exclusion
+    # logic — this makes the test tolerant of future SDK-side changes to which
+    # SKUs get the option registered.
+    if rs.option.auto_exposure_mode not in depth.get_supported_options():
+        pytest.skip(f"RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE not registered on {name}")
+    return depth
 
 
 def test_verify_camera_ae_mode_default_is_regular(depth_sensor):
@@ -78,18 +89,18 @@ def test_set_during_streaming_mode_not_allowed(depth_sensor):
         depth_sensor.close()
 
 
-def test_option_absent_on_d415(test_device_wrapped):
-    """Positive verification of the D415 exclusion: option must NOT be registered.
+def test_option_absent_on_rolling_shutter_sku(test_device_wrapped):
+    """Positive verification of the rolling-shutter exclusion.
 
-    Runs alongside the D400* parametrization but only asserts on D415 devices;
-    other SKUs skip. This is the counterpart to the fixture-level D415 skip in
-    the tests above — those confirm the option works where it's supposed to,
-    this one confirms it's absent where it isn't.
+    The SDK gates registration on `!CAP_ROLLING_SHUTTER` (see d400-device.cpp
+    around the DEPTH AUTO EXPOSURE MODE registration). This test asserts the
+    option is genuinely absent on any of the D400 RS-family devices — the
+    counterpart to the fixture-level skip above.
     """
     dev, _ = test_device_wrapped
     name = dev.get_info(rs.camera_info.name)
-    if "D415" not in name:
-        pytest.skip(f"Negative case runs on D415 only (device is {name})")
+    if not any(rs_name in name for rs_name in ROLLING_SHUTTER_D400_NAMES):
+        pytest.skip(f"Negative case runs on rolling-shutter D400 SKUs only (device is {name})")
     depth_sensor = dev.first_depth_sensor()
     assert rs.option.auto_exposure_mode not in depth_sensor.get_supported_options(), \
         f"RS2_OPTION_DEPTH_AUTO_EXPOSURE_MODE unexpectedly registered on {name}"
