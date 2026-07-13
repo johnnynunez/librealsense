@@ -42,6 +42,44 @@ live_logging = False
 # --repeat/--count passes all accumulate in one file instead of overwriting each other.
 _opened_logs = set()
 
+# Keep a reference to the installed LibRS log callback so it isn't garbage-collected.
+_rs_log_callback = None
+
+
+def install_rs_log_bridge(rs):
+    """Route LibRS (C++) logs into the 'librealsense' Python logger so they land in the
+    per-test log files (and pytest's captured-log reports) for every test -- including each
+    ``--repeat``/``--count`` pass.
+
+    Uses ``log_to_callback`` rather than ``log_to_console``: the latter writes at the fd
+    level, which pytest's default ``fd`` capture swallows, so only the pre-test device
+    enumeration (emitted before per-test capture starts) ever reached the console. Routing
+    through Python logging is capture-method agnostic and, with ``-s``, still streams live
+    to the console via the log_cli handler."""
+    global _rs_log_callback
+    if _rs_log_callback is not None:
+        return
+    level_map = {
+        rs.log_severity.debug: logging.DEBUG,
+        rs.log_severity.info: logging.INFO,
+        rs.log_severity.warn: logging.WARNING,
+        rs.log_severity.error: logging.ERROR,
+        rs.log_severity.fatal: logging.CRITICAL,
+    }
+
+    def _callback(severity, message):
+        try:
+            log.log(level_map.get(severity, logging.DEBUG), message.raw())
+        except Exception:
+            pass  # never let a logging callback break a test
+
+    # DEBUG so --rslog surfaces LibRS debug lines even without --debug (the FileHandler is
+    # also DEBUG; the logger level is the first gate a record must pass).
+    log.setLevel(logging.DEBUG)
+    _rs_log_callback = _callback
+    rs.log_to_callback(rs.log_severity.debug, _callback)
+
+
 def bridge_rspy_log():
     """Wrap rspy.log.d/i/w/e to also emit via Python logging."""
     def _wrap(original_fn, py_level):
