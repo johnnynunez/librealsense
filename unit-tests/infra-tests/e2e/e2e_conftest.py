@@ -26,9 +26,15 @@ def _mock_log_to_console(level):
     _tracking["rslog_calls"].append({"level": level})
     _save_tracking()
 _rs.log_to_console = _mock_log_to_console
+class _FakeLogMessage:
+    def raw(self):
+        return "fake librs log line"
 def _mock_log_to_callback(level, callback):
     _tracking["rslog_calls"].append({"level": level})
     _save_tracking()
+    # Exercise the routing path (callback fires -> Python logger receives the record),
+    # not just the registration, so the bridge itself is covered by the E2E test.
+    callback(level, _FakeLogMessage())
 _rs.log_to_callback = _mock_log_to_callback
 class _CameraInfo:
     name = "name"

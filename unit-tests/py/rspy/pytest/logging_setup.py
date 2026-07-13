@@ -47,15 +47,21 @@ _rs_log_callback = None
 
 
 def install_rs_log_bridge(rs):
-    """Route LibRS (C++) logs into the 'librealsense' Python logger so they land in the
-    per-test log files (and pytest's captured-log reports) for every test -- including each
-    ``--repeat``/``--count`` pass.
+    """Route LibRS (C++) logs into a dedicated ``librealsense.rs`` Python logger so they land
+    in the per-test log files (and pytest's captured-log reports) for every test -- including
+    each ``--repeat``/``--count`` pass.
 
     Uses ``log_to_callback`` rather than ``log_to_console``: the latter writes at the fd
     level, which pytest's default ``fd`` capture swallows, so only the pre-test device
     enumeration (emitted before per-test capture starts) ever reached the console. Routing
     through Python logging is capture-method agnostic and, with ``-s``, still streams live
-    to the console via the log_cli handler."""
+    to the console via the log_cli handler.
+
+    A DEDICATED child logger (not the shared ``librealsense`` logger) is set to DEBUG so
+    --rslog surfaces LibRS debug lines regardless of --debug -- matching the legacy
+    run-unit-tests.py behavior, where --rslog and --debug were independent -- WITHOUT lowering
+    the shared logger and leaking every other test's DEBUG output. Its records still propagate
+    up to the root FileHandler (propagation is gated only by the originating logger's level)."""
     global _rs_log_callback
     if _rs_log_callback is not None:
         return
@@ -66,16 +72,18 @@ def install_rs_log_bridge(rs):
         rs.log_severity.error: logging.ERROR,
         rs.log_severity.fatal: logging.CRITICAL,
     }
+    rs_log = logging.getLogger('librealsense.rs')
 
     def _callback(severity, message):
         try:
-            log.log(level_map.get(severity, logging.DEBUG), message.raw())
+            # Older pyrealsense2 builds may hand the callback a plain str instead of a
+            # log-message object; fall back to str() so the message still gets through.
+            text = message.raw() if hasattr(message, 'raw') else str(message)
+            rs_log.log(level_map.get(severity, logging.DEBUG), text)
         except Exception:
             pass  # never let a logging callback break a test
 
-    # DEBUG so --rslog surfaces LibRS debug lines even without --debug (the FileHandler is
-    # also DEBUG; the logger level is the first gate a record must pass).
-    log.setLevel(logging.DEBUG)
+    rs_log.setLevel(logging.DEBUG)
     _rs_log_callback = _callback
     rs.log_to_callback(rs.log_severity.debug, _callback)
 
