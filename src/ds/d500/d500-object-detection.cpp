@@ -119,6 +119,8 @@ namespace librealsense
 
     void d500_object_detection_sensor::start( rs2_frame_callback_sptr callback )
     {
+        // Inference and some embedded filters are mutually exclusive and cannot run together.
+        _owner->throw_if_inference_blocking_filter_enabled();
         // TODO: FW does not yet support the Align_Depth XU — re-enable once FW is ready.
         // set_align_depth_xu( _owner->get_raw_depth_sensor(), true );
         synthetic_sensor::start( callback );
