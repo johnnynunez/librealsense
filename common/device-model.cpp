@@ -343,7 +343,7 @@ namespace rs2
         }
     }
 
-    bool device_model::subdevice_has_inference_stream_enabled( const subdevice_model & sub )
+    bool device_model::subdevice_has_inference_stream_enabled( const subdevice_model & sub ) const
     {
         for( auto const & kv : sub.stream_enabled )
         {
@@ -383,7 +383,7 @@ namespace rs2
         }
     }
 
-    bool device_model::is_inference_streaming()
+    bool device_model::is_inference_streaming() const
     {
         for( auto const & sub : subdevices )
             if( sub->streaming && subdevice_has_inference_stream_enabled( *sub ) )
