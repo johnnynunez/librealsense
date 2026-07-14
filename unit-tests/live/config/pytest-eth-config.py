@@ -13,6 +13,7 @@ log = logging.getLogger(__name__)
 
 pytestmark = [
     pytest.mark.device_each("D555"), # Currently only D555 supports DDS configuration natively
+    pytest.mark.priority(2), # Run early (before streaming/fps tests) so the teardown heal lands first
 ]
 
 get_eth_config_opcode = 0xBB
@@ -47,8 +48,10 @@ def _module_setup_teardown():
     yield
     if 'orig' in _module_orig and 'dev' in _module_orig:
         try:
-            # If the device's link.timeout is outside our toggle set, overwrite it in order to write a sane value to flash.
-            # This heals units stuck at abnormal values from prior interrupted runs without any manual intervention.
+            # Overwrite streaming-critical fields with known-good values before writing to flash, healing
+            # a unit left throttled (bad MTU/transmission_delay/link.timeout) by a prior interrupted run.
+            _module_orig['orig'].link.mtu = 9000
+            _module_orig['orig'].transmission_delay = 0
             if _module_orig['orig'].link.timeout != LINK_TIMEOUT_BASELINE:
                 _module_orig['orig'].link.timeout = LINK_TIMEOUT_BASELINE
             set_eth_config(_module_orig['dev'], _module_orig['orig'])
