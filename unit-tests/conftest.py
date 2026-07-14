@@ -569,6 +569,23 @@ def session_setup_teardown(request):
     # Setup — runs once before the first test
     register_signal_handlers(_cleanup_devices)
 
+    # Ensure DDS cameras have the expected MTU/transmission_delay for streaming and testing, to
+    # avoid unexpected failures -- an interrupted pytest-eth-config run can leave them throttled.
+    if rs is not None:
+        for sn in devices.all():
+            try:
+                handle = devices.get(sn).handle
+                if not rs.supports_eth_config(handle):
+                    continue
+                eth = rs.eth_config_device(handle)
+                mtu, delay = eth.get_mtu(), eth.get_transmission_delay()
+                if (mtu, delay) != (9000, 0):  # expected values for un-throttled streaming
+                    log.warning(f"{sn}: eth-config mtu={mtu} tx_delay={delay} not at expected 9000/0 -- resetting")
+                    eth.set_mtu(9000)
+                    eth.set_transmission_delay(0)
+            except Exception as e:
+                log.warning(f"eth-config guard failed for {sn}: {e}")
+
     yield  # All tests run here
 
     # Teardown — runs once after the last test. The module-scoped log handler is already closed
