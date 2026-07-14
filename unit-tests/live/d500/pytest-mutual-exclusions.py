@@ -127,6 +127,24 @@ def test_blocking_filter_rejected_when_inference_active(depth_sensor, inference_
     embedded_filter.set_option( ENABLED, 0.0 )
 
 
+@pytest.mark.parametrize( "filter_type", BLOCKING_FILTERS )
+def test_blocking_filter_rejected_when_inference_opened_not_streaming(depth_sensor, inference_sensor,
+                                                                      inference_profile, filter_type):
+    # Covers the open()->start() window: the inference sensor is opened but not yet streaming. Enabling a blocking
+    # filter in that window must still be rejected, otherwise the subsequent start() would leave both active.
+    embedded_filter = get_embedded_filter_or_skip( depth_sensor, filter_type )
+    try:
+        inference_sensor.open( inference_profile )  # opened, not started
+    except RuntimeError as e:
+        pytest.skip( f"Inference stream not openable on this device: {e}" )
+    try:
+        with pytest.raises( RuntimeError ):
+            embedded_filter.set_option( ENABLED, 1.0 )
+        check.equal( embedded_filter.get_option( ENABLED ), 0.0 )
+    finally:
+        inference_sensor.close()
+
+
 @pytest.mark.parametrize( "filter_type", NON_BLOCKING_FILTERS )
 def test_non_blocking_filter_and_inference_coexist(depth_sensor, inference_sensor, inference_profile, filter_type):
     embedded_filter = get_embedded_filter_or_skip( depth_sensor, filter_type )

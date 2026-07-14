@@ -140,6 +140,10 @@ bool device::is_inference_active() const
             continue;
         if( s.is_streaming() )
             return true;
+        // An inference sensor that is opened but not yet streaming is already "active" for our purposes
+        auto sb = dynamic_cast< const sensor_base * >( &s );  // is_opened() is not on sensor_interface
+        if( sb && sb->is_opened() )
+            return true;
     }
     return false;
 }
