@@ -953,6 +953,15 @@ namespace librealsense
                 }
             }
 
+            if( _fw_version >= firmware_version( "5.17.3.13" )
+                && val_in_range( _pid, { RS405_PID, RS455_PID, RS457_PID, RS435I_PID, RS401_GMSL_PID } ) )
+            {
+                depth_sensor.register_option( RS2_OPTION_READOUT_SHAPING,
+                    std::make_shared< uvc_xu_option< uint8_t > >( raw_depth_sensor, depth_xu,
+                        DS5_READOUT_SHAPING,
+                        "IR/depth sensor readout shaping [0-100%]; higher slows readout to avoid dropped frames" ) );
+            }
+
             depth_sensor.register_option( RS2_OPTION_STEREO_BASELINE,
                                           std::make_shared< const_value_option >(
                                               "Distance in mm between the stereo imagers",
