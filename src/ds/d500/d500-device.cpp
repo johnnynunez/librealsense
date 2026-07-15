@@ -591,7 +591,7 @@ namespace librealsense
             depth_sensor.register_option(RS2_OPTION_SOC_PVT_TEMPERATURE, pvt_temperature);
             depth_sensor.register_option(RS2_OPTION_OHM_TEMPERATURE, ohm_temperature);
 
-            if (_pid == D585S_PID)
+            if (d500_projector_temperature_pids.count(_pid))
             {
                 auto proj_temperature = std::make_shared< temperature_xu_option >(raw_depth_sensor,
                     depth_xu,
