@@ -2008,11 +2008,25 @@ namespace rs2
 
                         ///////////////////////////////////////////
                         //TODO: make this a member function
-                        int selected;
-                        std::vector< const char * > labels = opt_model.get_combo_labels( &selected );
+                        std::vector< const char * > labels;
                         std::vector< float > counters;
+                        int selected = 0, counter = 0;
                         for (auto i = opt_model.range.min; i <= opt_model.range.max; i += opt_model.range.step)
+                        {
+                            std::string product = dev.get_info(RS2_CAMERA_INFO_PRODUCT_LINE);
+
+                            // Default is only there for backwards compatibility and will throw an
+                            // exception if used
+                            if (product == "L500" && (size_t)(i) == RS2_L500_VISUAL_PRESET_DEFAULT)
+                                continue;
+
+                            if (std::fabs(i - opt_model.value_as_float()) < 0.001f)
+                                selected = counter;
+
+                            labels.push_back(opt_model.endpoint->get_option_value_description(opt_model.opt, i));
                             counters.push_back(i);
+                            counter++;
+                        }
                         ///////////////////////////////////////////
 
                         RsImGui_ScopePushStyleColor(ImGuiCol_TextSelectedBg, white);
