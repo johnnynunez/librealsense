@@ -1,5 +1,5 @@
 //// License: Apache 2.0. See LICENSE file in root directory.
-//// Copyright(c) 2020 Intel Corporation. All Rights Reserved.
+//// Copyright(c) 2020 RealSense, Inc. All Rights Reserved.
 
 #include "get-mfr-ww.h"
 #include <string>
@@ -10,10 +10,10 @@ namespace utilities {
 namespace time {
 namespace l500 {
 // The Serial Number format is PYWWXXXX:
-// P – Site Name(ex.“F” for Fabrinet)
-// Y – Year(ex.“9” for 2019, "0" for 2020, , "1" for 2021  ..etc)
-// WW – Work Week
-// XXXX – Sequential number
+// P - Site Name(ex."F" for Fabrinet)
+// Y - Year(ex."9" for 2019, "0" for 2020, , "1" for 2021  ..etc)
+// WW - Work Week
+// XXXX - Sequential number
 rsutils::time::work_week get_manufacture_work_week( const std::string & serial )
 {
     if( serial.size() != 8 )

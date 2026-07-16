@@ -1,5 +1,5 @@
 // License: Apache 2.0. See LICENSE file in root directory.
-// Copyright(c) 2018 Intel Corporation. All Rights Reserved.
+// Copyright(c) 2018 RealSense, Inc. All Rights Reserved.
 
 #include <vector>
 #include "device.h"
@@ -331,7 +331,7 @@ namespace librealsense
         const uint32_t baseline_address = 0xa00e0868;
         command cmd(ivcam2::fw_cmd::MRD, baseline_address, baseline_address + 4);
         auto res = _owner->_hw_monitor->send(cmd);
-        if (res.size() < 1)
+        if (res.size() < sizeof(float))
         {
             throw std::runtime_error("Invalid result size!");
         }
