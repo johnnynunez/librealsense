@@ -8,6 +8,8 @@
 #include "ds/d500/d500-private.h"
 #include "ds/d400/d400-fw-update-device.h"
 #include "ds/d500/d500-fw-update-device.h"
+#include "l500/l500-private.h"
+#include "l500/l500-fw-update-device.h"
 
 #include <rsutils/string/from.h>
 
@@ -27,6 +29,8 @@ namespace librealsense
             return RS2_PRODUCT_LINE_D500;
         if( ds::D585S_RECOVERY_PID == usb_info.pid )
             return RS2_PRODUCT_LINE_D500;
+        if( L500_RECOVERY_PID == usb_info.pid )
+            return RS2_PRODUCT_LINE_L500;
         return 0;
     }
 
@@ -79,6 +83,8 @@ namespace librealsense
                         case ds::D555_RECOVERY_PID:
                         case ds::D585S_RECOVERY_PID:
                             return std::make_shared< ds_d500_update_device >(shared_from_this(), usb);
+                        case L500_RECOVERY_PID:
+                            return std::make_shared< l500_update_device >(shared_from_this(), usb);
                         default:
                             // Do nothing
                             break;

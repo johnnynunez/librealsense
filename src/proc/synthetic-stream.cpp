@@ -631,4 +631,73 @@ namespace librealsense
 
         set_processing_callback( make_frame_processor_callback( std::move( process_callback ) ) );
     }
+    composite_processing_block::composite_processing_block() :
+        composite_processing_block("Composite Processing Block")
+    {}
+
+    composite_processing_block::composite_processing_block(const char * name) :
+        processing_block(name)
+    {}
+
+    processing_block & composite_processing_block::get(rs2_option option)
+    {
+        // Find the first block which supports the option.
+        // It doesn't matter which one is selected, as long as it supports the option, because of the 
+        // option propogation caused by bypass_option::set(value)
+        int i = 0;
+        for (i = 0; i < _processing_blocks.size(); i++)
+        {
+            if (_processing_blocks[i]->supports_option(option))
+            {
+                auto val = _processing_blocks[i]->get_option(option).query();
+                if (val > 0.f) break;
+            }
+        }
+
+        if (i >= _processing_blocks.size())
+            throw invalid_value_exception( rsutils::string::from()
+                                           << "No processing block supports option " << option );
+
+        update_info(RS2_CAMERA_INFO_NAME, _processing_blocks[i]->get_info(RS2_CAMERA_INFO_NAME));
+
+        return *_processing_blocks[i];
+    }
+
+    void composite_processing_block::add(std::shared_ptr<processing_block> block)
+    {
+        _processing_blocks.push_back(block);
+
+        const auto&& supported_options = block->get_supported_options();
+        for (auto&& opt : supported_options)
+        {
+            register_option(opt, std::make_shared<bypass_option>(this, opt));
+        }
+
+        update_info(RS2_CAMERA_INFO_NAME, block->get_info(RS2_CAMERA_INFO_NAME));
+    }
+
+    void composite_processing_block::set_output_callback(rs2_frame_callback_sptr callback)
+    {
+        // Each processing block will process the preceding processing block output frame.
+        size_t i = 0;
+        for (i = 1; i < _processing_blocks.size(); i++)
+        {
+            _processing_blocks[i - 1]->set_output_callback( make_frame_callback(
+                [i, this]( frame_interface * f ) { _processing_blocks[i]->invoke( frame_holder{ f } ); } ) );
+        }
+
+        // Set the output callback of the composite processing block as last processing block in the vector.
+        if (!_processing_blocks.empty())
+            _processing_blocks.back()->set_output_callback(callback);
+    }
+
+    void composite_processing_block::invoke(frame_holder frames)
+    {
+        // Invoke the first processing block.
+        // This will trigger processing the frame in a chain by the order of the given processing blocks vector.
+        if (_processing_blocks.empty())
+            throw wrong_api_call_sequence_exception("composite_processing_block has no processing blocks");
+        _processing_blocks.front()->invoke(std::move(frames));
+    }
+
 }

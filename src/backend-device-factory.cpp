@@ -10,6 +10,7 @@
 #include "backend-device.h"
 #include "ds/d400/d400-info.h"
 #include "ds/d500/d500-info.h"
+#include "l500/l500-info.h"
 #include "fw-update/fw-update-factory.h"
 #include "platform-camera.h"
 
@@ -206,6 +207,12 @@ backend_device_factory::create_devices_from_group( platform::backend_device_grou
         {
             auto d500_devices = d500_info::pick_d500_devices( ctx, devices );
             std::copy( begin( d500_devices ), end( d500_devices ), std::back_inserter( list ) );
+        }
+
+        if( mask & RS2_PRODUCT_LINE_L500 )
+        {
+            auto l500_devices = l500_info::pick_l500_devices( ctx, devices );
+            std::copy( begin( l500_devices ), end( l500_devices ), std::back_inserter( list ) );
         }
 
         // Supported recovery devices
