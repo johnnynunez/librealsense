@@ -131,6 +131,7 @@ namespace librealsense
 
         _polling_error_handler = std::make_shared<polling_error_handler>(1000,
             error_control,
+            std::weak_ptr<std::atomic<bool>>( _device_alive ),
             raw_depth_sensor->get_notifications_processor(),
             std::make_shared<l500_notification_decoder>());
 

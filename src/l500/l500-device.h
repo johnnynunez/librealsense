@@ -34,6 +34,7 @@ namespace librealsense
     {
     public:
         l500_device( std::shared_ptr< const l500_info > const & dev_info );
+        ~l500_device();
 
         std::shared_ptr<synthetic_sensor> create_depth_device(std::shared_ptr<context> ctx,
             const std::vector<platform::uvc_device_info>& all_device_infos);
@@ -90,6 +91,12 @@ namespace librealsense
         std::shared_ptr<hw_monitor> _hw_monitor;
         uint8_t _depth_device_idx;
 
+        // MUST be declared before _polling_error_handler — destruction order matters:
+        // members destruct in reverse declaration order, so _polling_error_handler's
+        // worker thread joins (and dereferences this weak_ptr) while _device_alive is
+        // still alive.
+        std::shared_ptr<std::atomic<bool>> _device_alive
+            = std::make_shared<std::atomic<bool>>(true);
         std::shared_ptr<polling_error_handler> _polling_error_handler;
 
         rsutils::lazy<ivcam2::intrinsic_depth> _calib_table;

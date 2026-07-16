@@ -160,6 +160,13 @@ namespace librealsense
     }
 
 
+    l500_device::~l500_device()
+    {
+        // Signal background loops (polling_error_handler) so they exit cleanly on the
+        // next tick instead of firing one more failing FW query before being joined.
+        _device_alive->store( false );
+    }
+
     l500_depth_sensor & l500_device::get_depth_sensor()
     {
         return dynamic_cast<l500_depth_sensor &>(get_sensor( _depth_device_idx ));
