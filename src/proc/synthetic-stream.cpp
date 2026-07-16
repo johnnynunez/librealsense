@@ -654,6 +654,10 @@ namespace librealsense
             }
         }
 
+        if (i >= _processing_blocks.size())
+            throw invalid_value_exception( rsutils::string::from()
+                                           << "No processing block supports option " << option );
+
         update_info(RS2_CAMERA_INFO_NAME, _processing_blocks[i]->get_info(RS2_CAMERA_INFO_NAME));
 
         return *_processing_blocks[i];
@@ -683,13 +687,16 @@ namespace librealsense
         }
 
         // Set the output callback of the composite processing block as last processing block in the vector.
-        _processing_blocks.back()->set_output_callback(callback);
+        if (!_processing_blocks.empty())
+            _processing_blocks.back()->set_output_callback(callback);
     }
 
     void composite_processing_block::invoke(frame_holder frames)
     {
         // Invoke the first processing block.
         // This will trigger processing the frame in a chain by the order of the given processing blocks vector.
+        if (_processing_blocks.empty())
+            throw wrong_api_call_sequence_exception("composite_processing_block has no processing blocks");
         _processing_blocks.front()->invoke(std::move(frames));
     }
 

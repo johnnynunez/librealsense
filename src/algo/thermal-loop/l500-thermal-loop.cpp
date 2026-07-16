@@ -1,5 +1,5 @@
 // License: Apache 2.0. See LICENSE file in root directory.
-// Copyright(c) 2020 Intel Corporation. All Rights Reserved.
+// Copyright(c) 2020 RealSense, Inc. All Rights Reserved.
 
 #include "l500-thermal-loop.h"
 #include "../../l500/l500-private.h"
@@ -68,6 +68,9 @@ bool operator==( const thermal_calibration_table & lhs, const thermal_calibratio
 
 double thermal_calibration_table::get_thermal_scale( double hum_temp ) const
 {
+    if( _resolution == 0 )
+        throw std::runtime_error( "thermal calibration table has no bins" );
+
     auto scale = bins[_resolution - 1].scale;
 
     auto temp_range = _header.max_temp - _header.min_temp;

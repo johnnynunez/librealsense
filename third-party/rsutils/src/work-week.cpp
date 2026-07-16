@@ -1,5 +1,5 @@
 //// License: Apache 2.0. See LICENSE file in root directory.
-//// Copyright(c) 2020 Intel Corporation. All Rights Reserved.
+//// Copyright(c) 2020 RealSense, Inc. All Rights Reserved.
 
 #include <rsutils/time/work-week.h>
 #include <string>
@@ -59,6 +59,8 @@ work_week::work_week( const std::time_t & t )
     auto time = &buf;
 #else
     auto time = localtime_r( &t, &buf );
+    if( ! time )
+        throw std::runtime_error( "failed to convert time_t to local time" );
 #endif
 
     _year = time->tm_year + 1900;  // The tm_year field contains the number of years
